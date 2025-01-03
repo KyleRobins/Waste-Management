@@ -103,16 +103,20 @@ export default function ProductsPage() {
         stock: `${values.stock} tons`,
         sourceType: values.sourceType,
         processDate: values.processDate,
-        status: Number(values.stock) === 0 ? "out_of_stock" : 
-                Number(values.stock) <= 30 ? "low_stock" : "in_stock",
+        status:
+          Number(values.stock) === 0
+            ? "out_of_stock"
+            : Number(values.stock) <= 30
+            ? "low_stock"
+            : "in_stock",
       };
 
       // Here you would typically make an API call to check if product exists
       // and then save to database if it doesn't
-      
+
       // Update the products state with the new product
       setProducts([...products, newProduct]);
-      
+
       // Close dialog and reset form
       setIsDialogOpen(false);
       form.reset();
@@ -122,15 +126,20 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-between items-center">
+    <div className="flex flex-col gap-4 p-4 md:p-8">
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Products</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+            Products
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Manage your recycled products inventory
           </p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)}>
+        <Button
+          onClick={() => setIsDialogOpen(true)}
+          className="w-full sm:w-auto"
+        >
           <Plus className="mr-2 h-4 w-4" />
           Add Product
         </Button>
@@ -138,10 +147,10 @@ export default function ProductsPage() {
       <DataTable columns={columns} data={products} />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="w-[95%] max-w-[425px] sm:w-full p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Add New Product</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl">Add New Product</DialogTitle>
+            <DialogDescription className="text-sm">
               Fill in the details to add a new recycled product.
             </DialogDescription>
           </DialogHeader>
@@ -250,14 +259,17 @@ export default function ProductsPage() {
                 )}
               />
 
-              <div className="flex justify-end space-x-2">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:space-x-2">
                 <Button
                   variant="outline"
                   onClick={() => setIsDialogOpen(false)}
+                  className="w-full sm:w-auto"
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Add Product</Button>
+                <Button type="submit" className="w-full sm:w-auto">
+                  Add Product
+                </Button>
               </div>
             </form>
           </Form>

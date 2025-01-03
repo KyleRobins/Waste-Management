@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { MoreHorizontal, Pencil, Trash } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/components/ui/use-toast";
 
 export type Customer = {
   id: string;
@@ -39,7 +41,7 @@ export const columns: ColumnDef<Customer>[] = [
     accessorKey: "email",
     header: "Email",
   },
-  //phone numbers 
+  //phone numbers
   {
     accessorKey: "purchasedProducts",
     header: "Purchased Products",
@@ -75,35 +77,40 @@ export const columns: ColumnDef<Customer>[] = [
   {
     accessorKey: "lastPurchase",
     header: "Last Purchase",
-    cell: ({ row }) => format(new Date(row.getValue("lastPurchase")), "MMM d, yyyy"),
+    cell: ({ row }) =>
+      format(new Date(row.getValue("lastPurchase")), "MMM d, yyyy"),
+  },
+  {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllPageRowsSelected()}
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+      />
+    ),
   },
   {
     id: "actions",
-    cell: ({ row }) => {
-      const customer = row.original;
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-red-600">
-              <Trash className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
-    },
+    cell: ({ row }) => (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          // Handle individual message
+          toast({
+            title: "Message Sent",
+            description: `Message sent to ${row.original.name}`,
+          });
+        }}
+      >
+        <Mail className="h-4 w-4" />
+      </Button>
+    ),
   },
 ];
