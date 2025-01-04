@@ -19,12 +19,15 @@ import {
   Moon,
   CreditCard,
   LogOut,
+  Wallet,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { useTheme } from "next-themes";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Separator } from "./ui/separator";
+import { Badge } from "./ui/badge";
 
 const routes = [
   {
@@ -61,6 +64,20 @@ const routes = [
     label: "Reports",
     icon: BarChart3,
     href: "/reports",
+  },
+];
+
+const monitoringRoutes = [
+  {
+    label: "Payments",
+    icon: Wallet,
+    href: "/payments",
+  },
+  {
+    label: "Messages",
+    icon: MessageSquare,
+    href: "/messages",
+    badge: 8, // Number of unread messages
   },
 ];
 
@@ -121,6 +138,37 @@ export function Sidebar() {
             )}
           </Link>
         ))}
+
+        <Separator className="my-4 bg-zinc-700" />
+
+        {monitoringRoutes.map((route) => (
+          <Link
+            key={route.href}
+            href={route.href}
+            className={cn(
+              "flex items-center w-full p-2 my-1 rounded-lg transition-colors relative",
+              pathname === route.href 
+                ? "bg-white/10 text-white" 
+                : "text-zinc-400 hover:text-white hover:bg-white/10",
+              isCollapsed ? "justify-center" : "justify-start"
+            )}
+          >
+            <route.icon className="h-5 w-5 min-w-[1.25rem]" />
+            {!isCollapsed && (
+              <span className="ml-3 text-sm">{route.label}</span>
+            )}
+            {route.badge && (
+              <Badge 
+                className={cn(
+                  "bg-emerald-500 text-white",
+                  isCollapsed ? "absolute -top-1 -right-1" : "ml-auto"
+                )}
+              >
+                {route.badge}
+              </Badge>
+            )}
+          </Link>
+        ))}
       </div>
 
       <div className="px-2 py-4">
@@ -162,22 +210,6 @@ export function Sidebar() {
             <span className="ml-3 text-sm">Toggle Theme</span>
           )}
         </Button>
-
-        <Link
-          href="/subscription"
-          className={cn(
-            "flex items-center w-full p-2 my-1 rounded-lg transition-colors",
-            pathname === "/subscription"
-              ? "bg-white/10 text-white"
-              : "text-zinc-400 hover:text-white hover:bg-white/10",
-            isCollapsed ? "justify-center" : "justify-start"
-          )}
-        >
-          <CreditCard className="h-5 w-5 min-w-[1.25rem]" />
-          {!isCollapsed && (
-            <span className="ml-3 text-sm">My Subscription</span>
-          )}
-        </Link>
 
         <Button
           variant="ghost"
