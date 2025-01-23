@@ -7,32 +7,49 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
+import { updatePayment } from "@/lib/services/payments.service";
+import { useToast } from "@/hooks/use-toast";
 
-const transactions = [
-  {
-    id: 1,
-    type: "collected",
-    amount: "$2,400",
-    from: "Eco Manufacturing Ltd",
-    date: "2024-03-15",
-  },
-  {
-    id: 2,
-    type: "disbursed",
-    amount: "$1,800",
-    from: "Green Waste Solutions",
-    date: "2024-03-14",
-  },
-  {
-    id: 3,
-    type: "pending",
-    amount: "$3,200",
-    from: "Sustainable Packaging Co",
-    date: "2024-03-13",
-  },
-];
+interface Payment {
+  id: string;
+  amount: number;
+  type: string;
+  status: string;
+  customer: {
+    name: string;
+  };
+  supplier: {
+    name: string;
+  };
+  created_at: string;
+}
 
-export function PaymentHistory() {
+interface PaymentHistoryProps {
+  payments: Payment[];
+  onUpdate: () => void;
+}
+
+export function PaymentHistory({ payments, onUpdate }: PaymentHistoryProps) {
+  const { toast } = useToast();
+
+  const handleStatusUpdate = async (payment: Payment, newStatus: string) => {
+    try {
+      await updatePayment(payment.id, { status: newStatus });
+      onUpdate();
+      toast({
+        title: "Success",
+        description: "Payment status updated successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update payment status",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -40,29 +57,42 @@ export function PaymentHistory() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {transactions.map((transaction) => (
+          {payments.map((payment) => (
             <div
-              key={transaction.id}
+              key={payment.id}
               className="flex items-center justify-between p-4 border rounded-lg"
             >
               <div className="space-y-1">
-                <p className="text-sm font-medium">{transaction.from}</p>
+                <p className="text-sm font-medium">
+                  {payment.type === "collected" 
+                    ? payment.customer.name 
+                    : payment.supplier.name}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(transaction.date).toLocaleDateString()}
+                  {format(new Date(payment.created_at), "MMM d, yyyy")}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{transaction.amount}</span>
+                <span className="text-sm font-medium">
+                  ${payment.amount.toFixed(2)}
+                </span>
                 <Badge
                   variant={
-                    transaction.type === "collected"
+                    payment.status === "completed"
                       ? "default"
-                      : transaction.type === "pending"
+                      : payment.status === "pending"
                       ? "secondary"
                       : "outline"
                   }
+                  className="cursor-pointer"
+                  onClick={() => 
+                    handleStatusUpdate(
+                      payment, 
+                      payment.status === "pending" ? "completed" : "pending"
+                    )
+                  }
                 >
-                  {transaction.type}
+                  {payment.status}
                 </Badge>
               </div>
             </div>

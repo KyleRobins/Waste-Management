@@ -1,15 +1,20 @@
 "use client";
 
 import { DataTable } from "@/components/shared/data-table";
+import { ImportExportButtons } from "@/components/shared/import-export-buttons";
+import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { columns } from "@/components/suppliers/columns";
 import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogClose,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -27,115 +32,123 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus } from "lucide-react";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import {
-  MultiSelect,
-  MultiSelectContent,
-  MultiSelectItem,
-  MultiSelectTrigger,
-  MultiSelectValue,
-} from "@/components/ui/multi-select";
+import { useState, useEffect } from "react";
+import { createSupplier, getSuppliers, deleteSupplier, updateSupplier } from "@/lib/services/suppliers.service";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
-  contactPerson: z
-    .string()
-    .min(2, "Contact person must be at least 2 characters"),
+  contact_person: z.string().min(2, "Contact person must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number"),
   location: z.string().min(2, "Location is required"),
   status: z.enum(["active", "inactive"]),
-  wasteTypes: z.array(z.string()).min(1, "Select at least one waste type"),
 });
 
-type SupplierFormValues = z.infer<typeof formSchema>;
-
-const defaultValues: Partial<SupplierFormValues> = {
-  status: "active",
-  wasteTypes: [],
-};
-
-const data = [
-  {
-    id: "1",
-    name: "Green Waste Solutions",
-    contactPerson: "John Smith",
-    email: "john@greenwaste.com",
-    phone: "+1 (555) 123-4567",
-    wasteTypes: ["Paper", "Plastic"],
-    location: "North Region",
-    status: "active",
-    joinDate: "2023-08-15",
-  },
-  {
-    id: "2",
-    name: "EcoRecycle Inc",
-    contactPerson: "Sarah Johnson",
-    email: "sarah@ecorecycle.com",
-    phone: "+1 (555) 234-5678",
-    wasteTypes: ["Metal", "Electronics"],
-    location: "South Region",
-    status: "active",
-    joinDate: "2023-09-20",
-  },
-  {
-    id: "3",
-    name: "Urban Waste Management",
-    contactPerson: "Michael Brown",
-    email: "michael@urbanwaste.com",
-    phone: "+1 (555) 345-6789",
-    wasteTypes: ["Organic", "Glass"],
-    location: "East Region",
-    status: "inactive",
-    joinDate: "2023-10-05",
-  },
-];
-
 export default function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState(data);
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
-  const form = useForm<SupplierFormValues>({
+
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues,
+    defaultValues: {
+      name: "",
+      contact_person: "",
+      email: "",
+      phone: "",
+      location: "",
+      status: "active",
+    },
   });
 
-  function onSubmit(formData: SupplierFormValues) {
-    console.log("Form submitted with data:", formData); // Debug log
+  useEffect(() => {
+    loadSuppliers();
+  }, []);
 
-    // Create new supplier with generated ID and join date
-    const newSupplier = {
-      id: (suppliers.length + 1).toString(),
-      ...formData,
-      joinDate: new Date().toISOString().split("T")[0],
-    };
+  const loadSuppliers = async () => {
+    try {
+      const data = await getSuppliers();
+      setSuppliers(data);
+      setLoading(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load suppliers",
+        variant: "destructive",
+      });
+      setLoading(false);
+    }
+  };
 
-    console.log("New supplier object:", newSupplier); // Debug log
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    try {
+      await createSupplier(values);
+      
+      toast({
+        title: "Success",
+        description: "Supplier has been added successfully.",
+      });
 
-    // Update suppliers list
-    setSuppliers((prev) => {
-      console.log("Previous suppliers:", prev); // Debug log
-      return [...prev, newSupplier];
-    });
+      loadSuppliers();
+      setOpen(false);
+      form.reset();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add supplier",
+        variant: "destructive",
+      });
+    }
+  };
 
-    // Show success toast
-    toast({
-      title: "Success",
-      description: "Supplier has been successfully added.",
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteSupplier(id);
+      toast({
+        title: "Success",
+        description: "Supplier has been deleted.",
+      });
+      loadSuppliers();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete supplier",
+        variant: "destructive",
+      });
+    }
+  };
 
-    // Reset form and close dialog
-    form.reset(defaultValues);
-    setOpen(false);
+  const handleUpdate = async (id: string, updates: Partial<z.infer<typeof formSchema>>) => {
+    try {
+      await updateSupplier(id, updates);
+      toast({
+        title: "Success",
+        description: "Supplier has been updated.",
+      });
+      loadSuppliers();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update supplier",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImport = async (data: any[]) => {
+    try {
+      await Promise.all(data.map(supplier => createSupplier(supplier)));
+      loadSuppliers();
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  if (loading) {
+    return <PageSkeleton />;
   }
-
-  // Add console log to check suppliers state changes
-  console.log("Current suppliers:", suppliers); // Debug log
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-8">
@@ -148,126 +161,87 @@ export default function SuppliersPage() {
             Manage your waste suppliers and their information
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Supplier
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px] w-[95%] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-            <DialogHeader>
-              <DialogTitle className="text-xl sm:text-2xl">
+        <div className="flex gap-2">
+          <ImportExportButtons
+            type="suppliers"
+            data={suppliers}
+            onImport={handleImport}
+          />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="w-full sm:w-auto">
+                <Plus className="mr-2 h-4 w-4" />
                 Add Supplier
-              </DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form
-                onSubmit={(e) => {
-                  console.log("Form submission started");
-                  form.handleSubmit(onSubmit)(e);
-                }}
-                className="space-y-6 mt-4"
-              >
-                <div className="grid gap-4 sm:gap-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm sm:text-base">
-                            Company Name
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter company name"
-                              {...field}
-                              className="h-9 sm:h-10"
-                            />
-                          </FormControl>
-                          <FormMessage className="text-xs sm:text-sm" />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="contactPerson"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm sm:text-base">
-                            Contact Person
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter contact person name"
-                              {...field}
-                              className="h-9 sm:h-10"
-                            />
-                          </FormControl>
-                          <FormMessage className="text-xs sm:text-sm" />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm sm:text-base">
-                            Email
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter email address"
-                              {...field}
-                              className="h-9 sm:h-10"
-                            />
-                          </FormControl>
-                          <FormMessage className="text-xs sm:text-sm" />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm sm:text-base">
-                            Phone Number
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="+1 (555) 123-4567"
-                              {...field}
-                              className="h-9 sm:h-10"
-                            />
-                          </FormControl>
-                          <FormMessage className="text-xs sm:text-sm" />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Supplier</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="contact_person"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contact Person</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name="location"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm sm:text-base">
-                          Location
-                        </FormLabel>
+                        <FormLabel>Location</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="Enter location"
-                            {...field}
-                            className="h-9 sm:h-10"
-                          />
+                          <Input {...field} />
                         </FormControl>
-                        <FormMessage className="text-xs sm:text-sm" />
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -276,13 +250,8 @@ export default function SuppliersPage() {
                     name="status"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm sm:text-base">
-                          Status
-                        </FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
+                        <FormLabel>Status</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select status" />
@@ -293,71 +262,32 @@ export default function SuppliersPage() {
                             <SelectItem value="inactive">Inactive</SelectItem>
                           </SelectContent>
                         </Select>
-                        <FormMessage className="text-xs sm:text-sm" />
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="wasteTypes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm sm:text-base">
-                          Waste Types
-                        </FormLabel>
-                        <MultiSelect
-                          value={field.value}
-                          onValueChange={field.onChange}
-                          placeholder="Select waste types"
-                        >
-                          <MultiSelectItem value="Paper">Paper</MultiSelectItem>
-                          <MultiSelectItem value="Plastic">
-                            Plastic
-                          </MultiSelectItem>
-                          <MultiSelectItem value="Metal">Metal</MultiSelectItem>
-                          <MultiSelectItem value="Glass">Glass</MultiSelectItem>
-                          <MultiSelectItem value="Organic">
-                            Organic
-                          </MultiSelectItem>
-                          <MultiSelectItem value="Electronics">
-                            Electronics
-                          </MultiSelectItem>
-                          <MultiSelectItem value="Hazardous">
-                            Hazardous
-                          </MultiSelectItem>
-                          <MultiSelectItem value="Construction">
-                            Construction
-                          </MultiSelectItem>
-                          <MultiSelectItem value="Textile">
-                            Textile
-                          </MultiSelectItem>
-                          <MultiSelectItem value="Wood">Wood</MultiSelectItem>
-                        </MultiSelect>
-                        <FormMessage className="text-xs sm:text-sm" />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    variant="outline"
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    className="h-9 sm:h-10 px-3 sm:px-4"
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="h-9 sm:h-10 px-3 sm:px-4">
-                    Submit
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => setOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit">Submit</Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
-      <DataTable columns={columns} data={suppliers} />
+      <DataTable 
+        columns={columns} 
+        data={suppliers}
+        onDelete={handleDelete}
+        onUpdate={handleUpdate}
+      />
     </div>
   );
 }

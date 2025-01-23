@@ -5,14 +5,11 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   Home,
-  Truck,
-  Users,
-  UserCircle,
-  Package,
+  Recycle,
+  Building2,
+  PackageSearch,
+  Users2,
   BarChart3,
-  Box,
-  ChevronLeft,
-  ChevronRight,
   Settings,
   HelpCircle,
   Sun,
@@ -21,8 +18,12 @@ import {
   LogOut,
   Wallet,
   MessageSquare,
+  ChevronLeft,
+  ChevronRight,
+  Factory,
+  Handshake,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { useTheme } from "next-themes";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -37,27 +38,27 @@ const routes = [
   },
   {
     label: "Waste Records",
-    icon: Truck,
+    icon: Recycle,
     href: "/waste-records",
   },
   {
     label: "Suppliers",
-    icon: Users,
+    icon: Factory,
     href: "/suppliers",
   },
   {
     label: "Customers",
-    icon: UserCircle,
+    icon: Handshake,
     href: "/customers",
   },
   {
     label: "Products",
-    icon: Box,
+    icon: PackageSearch,
     href: "/products",
   },
   {
     label: "Employees",
-    icon: Package,
+    icon: Users2,
     href: "/employees",
   },
   {
@@ -77,7 +78,7 @@ const monitoringRoutes = [
     label: "Messages",
     icon: MessageSquare,
     href: "/messages",
-    badge: 8, // Number of unread messages
+    badge: 8,
   },
 ];
 
@@ -96,8 +97,18 @@ const bottomRoutes = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { theme, setTheme } = useTheme();
+
+  // Only render after component is mounted to prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null; // Return null on server-side and first render
+  }
 
   const handleSignOut = () => {
     // Implement sign out logic here
@@ -107,7 +118,7 @@ export function Sidebar() {
   return (
     <aside 
       className={cn(
-        "h-full bg-slate-900 text-white relative flex flex-col",
+        "h-full bg-amazon-950 text-white relative flex flex-col",
         isCollapsed ? "w-[4rem]" : "w-[16rem]",
         "transition-all duration-300 ease-in-out"
       )}
@@ -127,8 +138,8 @@ export function Sidebar() {
             className={cn(
               "flex items-center w-full p-2 my-1 rounded-lg transition-colors",
               pathname === route.href 
-                ? "bg-white/10 text-white" 
-                : "text-zinc-400 hover:text-white hover:bg-white/10",
+                ? "bg-amazon-800 text-amazon-100" 
+                : "text-amazon-300 hover:text-amazon-100 hover:bg-amazon-800",
               isCollapsed ? "justify-center" : "justify-start"
             )}
           >
@@ -139,7 +150,7 @@ export function Sidebar() {
           </Link>
         ))}
 
-        <Separator className="my-4 bg-zinc-700" />
+        <Separator className="my-4 bg-amazon-800" />
 
         {monitoringRoutes.map((route) => (
           <Link
@@ -148,8 +159,8 @@ export function Sidebar() {
             className={cn(
               "flex items-center w-full p-2 my-1 rounded-lg transition-colors relative",
               pathname === route.href 
-                ? "bg-white/10 text-white" 
-                : "text-zinc-400 hover:text-white hover:bg-white/10",
+                ? "bg-amazon-800 text-amazon-100" 
+                : "text-amazon-300 hover:text-amazon-100 hover:bg-amazon-800",
               isCollapsed ? "justify-center" : "justify-start"
             )}
           >
@@ -160,7 +171,7 @@ export function Sidebar() {
             {route.badge && (
               <Badge 
                 className={cn(
-                  "bg-emerald-500 text-white",
+                  "bg-amazon-500 text-white",
                   isCollapsed ? "absolute -top-1 -right-1" : "ml-auto"
                 )}
               >
@@ -172,7 +183,7 @@ export function Sidebar() {
       </div>
 
       <div className="px-2 py-4">
-        <Separator className="my-4 bg-zinc-700" />
+        <Separator className="my-4 bg-amazon-800" />
         
         {bottomRoutes.map((route) => (
           <Link
@@ -181,8 +192,8 @@ export function Sidebar() {
             className={cn(
               "flex items-center w-full p-2 my-1 rounded-lg transition-colors",
               pathname === route.href 
-                ? "bg-white/10 text-white" 
-                : "text-zinc-400 hover:text-white hover:bg-white/10",
+                ? "bg-amazon-800 text-amazon-100" 
+                : "text-amazon-300 hover:text-amazon-100 hover:bg-amazon-800",
               isCollapsed ? "justify-center" : "justify-start"
             )}
           >
@@ -196,7 +207,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           className={cn(
-            "w-full p-2 my-1 flex items-center text-zinc-400 hover:text-white hover:bg-white/10",
+            "w-full p-2 my-1 flex items-center text-amazon-300 hover:text-amazon-100 hover:bg-amazon-800",
             isCollapsed ? "justify-center" : "justify-start"
           )}
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -214,7 +225,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           className={cn(
-            "w-full p-2 my-1 flex items-center text-zinc-400 hover:text-white hover:bg-white/10",
+            "w-full p-2 my-1 flex items-center text-amazon-300 hover:text-amazon-100 hover:bg-amazon-800",
             isCollapsed ? "justify-center" : "justify-start"
           )}
           onClick={handleSignOut}
@@ -235,8 +246,8 @@ export function Sidebar() {
           </Avatar>
           {!isCollapsed && (
             <div className="ml-3">
-              <p className="text-sm font-medium text-white">Kyle Robins</p>
-              <p className="text-xs text-zinc-400">Admin</p>
+              <p className="text-sm font-medium text-amazon-100">Kyle Robins</p>
+              <p className="text-xs text-amazon-400">Admin</p>
             </div>
           )}
         </div>
@@ -245,7 +256,7 @@ export function Sidebar() {
       <Button
         variant="ghost"
         size="icon"
-        className="absolute -right-4 top-6 text-zinc-400 hover:text-white bg-slate-900 rounded-full"
+        className="absolute -right-4 top-6 text-amazon-300 hover:text-amazon-100 bg-amazon-950 rounded-full"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         {isCollapsed ? (

@@ -19,7 +19,10 @@ export type WasteRecord = {
   date: string;
   type: string;
   quantity: string;
-  supplier: string;
+  supplier: {
+    name: string;
+    id: string;
+  };
   location: string;
   status: "pending" | "completed" | "requires_approval";
 };
@@ -41,6 +44,10 @@ export const columns: ColumnDef<WasteRecord>[] = [
   {
     accessorKey: "supplier",
     header: "Supplier",
+    cell: ({ row }) => {
+      const supplier = row.getValue("supplier") as { name: string };
+      return supplier?.name || "N/A";
+    },
   },
   {
     accessorKey: "location",

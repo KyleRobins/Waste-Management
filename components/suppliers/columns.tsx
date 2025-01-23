@@ -17,13 +17,13 @@ import {
 export type Supplier = {
   id: string;
   name: string;
-  contactPerson: string;
+  contact_person: string;
   email: string;
   phone: string;
-  wasteTypes: string[];
   location: string;
   status: "active" | "inactive";
-  joinDate: string;
+  join_date: string;
+  created_at: string;
 };
 
 export const columns: ColumnDef<Supplier>[] = [
@@ -32,7 +32,7 @@ export const columns: ColumnDef<Supplier>[] = [
     header: "Company Name",
   },
   {
-    accessorKey: "contactPerson",
+    accessorKey: "contact_person",
     header: "Contact Person",
   },
   {
@@ -40,20 +40,8 @@ export const columns: ColumnDef<Supplier>[] = [
     header: "Email",
   },
   {
-    accessorKey: "wasteTypes",
-    header: "Waste Types",
-    cell: ({ row }) => {
-      const types = row.getValue("wasteTypes") as string[];
-      return (
-        <div className="flex gap-1">
-          {types.map((type) => (
-            <Badge key={type} variant="outline">
-              {type}
-            </Badge>
-          ))}
-        </div>
-      );
-    },
+    accessorKey: "phone",
+    header: "Phone",
   },
   {
     accessorKey: "location",
@@ -72,9 +60,12 @@ export const columns: ColumnDef<Supplier>[] = [
     },
   },
   {
-    accessorKey: "joinDate",
+    accessorKey: "join_date",
     header: "Join Date",
-    cell: ({ row }) => format(new Date(row.getValue("joinDate")), "MMM d, yyyy"),
+    cell: ({ row }) => {
+      const date = row.getValue("join_date") as string;
+      return date ? format(new Date(date), "MMM d, yyyy") : "N/A";
+    },
   },
   {
     id: "actions",

@@ -8,32 +8,42 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { updateMessage } from "@/lib/services/messages.service";
+import { useToast } from "@/hooks/use-toast";
 
-const messages = [
-  {
-    id: 1,
-    subject: "Payment Reminder",
-    recipient: "Eco Manufacturing Ltd",
-    status: "delivered",
-    timestamp: new Date(2024, 2, 15, 14, 30),
-  },
-  {
-    id: 2,
-    subject: "Collection Schedule Update",
-    recipient: "Green Waste Solutions",
-    status: "unread",
-    timestamp: new Date(2024, 2, 15, 13, 45),
-  },
-  {
-    id: 3,
-    subject: "New Invoice",
-    recipient: "Sustainable Packaging Co",
-    status: "failed",
-    timestamp: new Date(2024, 2, 15, 12, 15),
-  },
-];
+interface Message {
+  id: string;
+  subject: string;
+  recipient: {
+    name: string;
+  };
+  status: string;
+  created_at: string;
+}
 
-export function MessageList() {
+interface MessageListProps {
+  messages: Message[];
+  onUpdate: () => void;
+}
+
+export function MessageList({ messages, onUpdate }: MessageListProps) {
+  const { toast } = useToast();
+
+  const handleMessageClick = async (message: Message) => {
+    if (message.status === "unread") {
+      try {
+        await updateMessage(message.id, { status: "delivered" });
+        onUpdate();
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to update message status",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -44,15 +54,16 @@ export function MessageList() {
           {messages.map((message) => (
             <div
               key={message.id}
-              className="flex items-center justify-between p-4 border rounded-lg"
+              className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-gray-50"
+              onClick={() => handleMessageClick(message)}
             >
               <div className="space-y-1">
                 <p className="text-sm font-medium">{message.subject}</p>
                 <p className="text-xs text-muted-foreground">
-                  To: {message.recipient}
+                  To: {message.recipient.name}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {format(message.timestamp, "MMM d, yyyy HH:mm")}
+                  {format(new Date(message.created_at), "MMM d, yyyy HH:mm")}
                 </p>
               </div>
               <Badge
