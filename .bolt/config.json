@@ -1,5 +1,6 @@
 {
   "template": "nextjs-shadcn",
   "icons" : "lucide-react",
-  "mail" : "resend"
+  "mail" : "resend",
+  "db" : "supabase"
 }
