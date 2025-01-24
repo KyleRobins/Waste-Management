@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Card,
   CardContent,
@@ -5,8 +7,73 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Scale, Users, Truck, Recycle } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect } from "react";
+import { format } from "date-fns";
 
 export function DashboardStats() {
+  const [totalWaste, setTotalWaste] = useState(0);
+  const [activeSuppliers, setActiveSuppliers] = useState(0);
+  const [todayCollections, setTodayCollections] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        // Get total waste collected
+        const { data: wasteRecords } = await supabase
+          .from('waste_records')
+          .select('quantity');
+        
+        const total = wasteRecords?.reduce((sum, record) => {
+          return sum + parseFloat(record.quantity || '0');
+        }, 0) || 0;
+
+        // Get active suppliers count
+        const { count: suppliersCount } = await supabase
+          .from('suppliers')
+          .select('*', { count: 'exact' })
+          .eq('status', 'active');
+
+        // Get today's collections
+        const today = new Date().toISOString().split('T')[0];
+        const { count: todayCount } = await supabase
+          .from('waste_records')
+          .select('*', { count: 'exact' })
+          .gte('created_at', today);
+
+        setTotalWaste(total);
+        setActiveSuppliers(suppliersCount || 0);
+        setTodayCollections(todayCount || 0);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Loading...</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">...</div>
+              <p className="text-xs text-muted-foreground">Loading...</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <Card>
@@ -15,9 +82,9 @@ export function DashboardStats() {
           <Scale className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">2,345 kg</div>
+          <div className="text-2xl font-bold">{totalWaste.toFixed(2)} kg</div>
           <p className="text-xs text-muted-foreground">
-            +20.1% from last month
+            Total waste recorded in the system
           </p>
         </CardContent>
       </Card>
@@ -27,9 +94,9 @@ export function DashboardStats() {
           <Users className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">48</div>
+          <div className="text-2xl font-bold">{activeSuppliers}</div>
           <p className="text-xs text-muted-foreground">
-            +4 new this month
+            Total active suppliers
           </p>
         </CardContent>
       </Card>
@@ -39,9 +106,9 @@ export function DashboardStats() {
           <Truck className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">12</div>
+          <div className="text-2xl font-bold">{todayCollections}</div>
           <p className="text-xs text-muted-foreground">
-            3 pending collections
+            Waste collections recorded today
           </p>
         </CardContent>
       </Card>
@@ -53,7 +120,7 @@ export function DashboardStats() {
         <CardContent>
           <div className="text-2xl font-bold">78.3%</div>
           <p className="text-xs text-muted-foreground">
-            +2.4% from last month
+            Average recycling efficiency
           </p>
         </CardContent>
       </Card>
