@@ -47,7 +47,6 @@ export const columns: ColumnDef<Product>[] = [
     header: "Source Type",
   },
   {
-    // add a tooltip to give more info on the status 
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => {
@@ -70,7 +69,16 @@ export const columns: ColumnDef<Product>[] = [
   {
     accessorKey: "processDate",
     header: "Process Date",
-    cell: ({ row }) => format(new Date(row.getValue("processDate")), "MMM d, yyyy"),
+    cell: ({ row }) => {
+      const date = row.getValue("processDate") as string;
+      if (!date) return "N/A";
+      
+      try {
+        return format(new Date(date), "MMM d, yyyy");
+      } catch (error) {
+        return "Invalid date";
+      }
+    },
   },
   {
     id: "actions",
