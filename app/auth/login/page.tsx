@@ -1,11 +1,11 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useState, FormEvent, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { signIn } from "@/lib/services/auth.service";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -17,16 +17,40 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 export default function LoginPage() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClient();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    // Show success message if email was verified
+    const message = searchParams.get("message");
+    const error = searchParams.get("error");
+
+    if (message) {
+      toast({
+        title: "Success",
+        description: message,
+      });
+    }
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+    }
+  }, [searchParams, toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -36,32 +60,50 @@ export default function LoginPage() {
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: values.email,
-        password: values.password,
-      });
+      const formData = new FormData(e.currentTarget);
+      const email = formData.get("email")?.toString() || "";
+      const password = formData.get("password")?.toString() || "";
+
+      const { data, error, role } = await signIn(email, password);
 
       if (error) throw error;
 
-      router.push("/");
-      router.refresh();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Login failed",
-        variant: "destructive",
-      });
+      // Role-based redirection
+      const redirectMap = {
+        admin: "/dashboard",
+        employee: "/dashboard",
+        supplier: "/supplier-portal",
+        customer: "/customer-portal",
+      };
+
+      router.push(
+        redirectMap[role as keyof typeof redirectMap] || "/dashboard"
+      );
+    } catch (err: any) {
+      setError(err.message || "Failed to login");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md w-96">
-        <h1 className="text-2xl font-bold mb-6">Login</h1>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
+        <div className="space-y-2 text-center">
+          <h1 className="text-3xl font-bold">Welcome Back</h1>
+          <p className="text-muted-foreground">
+            Enter your credentials to access your account
+          </p>
+        </div>
+
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <FormField
               control={form.control}
               name="email"
@@ -69,12 +111,13 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" {...field} />
+                    <Input placeholder="email@example.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name="password"
@@ -88,17 +131,30 @@ export default function LoginPage() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full">
-              Login
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
         </Form>
-        <p className="mt-4 text-center text-sm text-gray-600">
-          Don't have an account?{" "}
-          <Link href="/auth/register" className="text-primary hover:underline">
-            Register
+
+        <div className="space-y-2 text-center text-sm">
+          <p className="text-muted-foreground">
+            Don't have an account?{" "}
+            <Link
+              href="/auth/register"
+              className="text-primary hover:underline"
+            >
+              Register
+            </Link>
+          </p>
+          <Link
+            href="/auth/forgot-password"
+            className="text-primary hover:underline block"
+          >
+            Forgot your password?
           </Link>
-        </p>
+        </div>
       </div>
     </div>
   );

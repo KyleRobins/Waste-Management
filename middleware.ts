@@ -1,37 +1,107 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+const publicRoutes = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+];
+
+const roleRoutes = {
+  admin: [
+    "/dashboard",
+    "/employees",
+    "/suppliers",
+    "/customers",
+    "/products",
+    "/waste-records",
+  ],
+  employee: ["/dashboard", "/waste-records"],
+  supplier: ["/supplier-portal", "/products"],
+  customer: ["/customer-portal"],
+};
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
+  try {
+    // Create a Supabase client configured to use cookies
+    const supabase = createMiddlewareClient({ req, res: NextResponse.next() });
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    // Refresh session if expired - required for Server Components
+    await supabase.auth.getSession();
 
-  // Protect all routes except auth and public pages
-  if (!session && !req.nextUrl.pathname.startsWith('/auth')) {
-    return NextResponse.redirect(new URL('/auth/login', req.url));
+    const path = req.nextUrl.pathname;
+
+    // Allow public assets
+    if (
+      path.startsWith("/_next") ||
+      path.startsWith("/api") ||
+      path.startsWith("/static")
+    ) {
+      return NextResponse.next();
+    }
+
+    // Handle root path
+    if (path === "/") {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        return NextResponse.redirect(new URL("/auth/login", req.url));
+      }
+      // Redirect to appropriate dashboard based on role
+      const userRole = session.user.user_metadata
+        .role as keyof typeof roleRoutes;
+      const defaultRoute = roleRoutes[userRole]?.[0] || "/dashboard";
+      return NextResponse.redirect(new URL(defaultRoute, req.url));
+    }
+
+    // Handle authentication
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      // Allow access to public routes
+      if (publicRoutes.includes(path)) {
+        return NextResponse.next();
+      }
+      // Redirect to login for protected routes
+      return NextResponse.redirect(new URL("/auth/login", req.url));
+    }
+
+    // Prevent authenticated users from accessing auth pages
+    if (publicRoutes.includes(path)) {
+      const userRole = session.user.user_metadata
+        .role as keyof typeof roleRoutes;
+      const defaultRoute = roleRoutes[userRole]?.[0] || "/dashboard";
+      return NextResponse.redirect(new URL(defaultRoute, req.url));
+    }
+
+    // Check role-based access
+    const userRole = session.user.user_metadata.role as keyof typeof roleRoutes;
+    const hasAccess =
+      userRole === "admin" ||
+      roleRoutes[userRole]?.some((route) => path.startsWith(route));
+
+    if (!hasAccess) {
+      const defaultRoute = roleRoutes[userRole]?.[0] || "/dashboard";
+      return NextResponse.redirect(new URL(defaultRoute, req.url));
+    }
+
+    return NextResponse.next();
+  } catch (error) {
+    console.error("Middleware error:", error);
+    return NextResponse.next();
   }
-
-  // Redirect logged-in users away from auth pages
-  if (session && req.nextUrl.pathname.startsWith('/auth')) {
-    return NextResponse.redirect(new URL('/', req.url));
-  }
-
-  return res;
 }
 
+// Specify which routes should be protected
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
+    // Protected routes
+    "/dashboard/:path*",
+    "/admin/:path*",
+    // Add other protected routes here
   ],
 };

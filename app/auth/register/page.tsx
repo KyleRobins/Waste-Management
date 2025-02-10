@@ -1,11 +1,11 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { signUp } from "@/lib/services/auth.service";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -16,6 +16,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 import {
   Select,
   SelectContent,
@@ -23,95 +25,77 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
 
-const formSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-      "Password must contain at least one uppercase letter, one lowercase letter, and one number"
-    ),
-  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number"),
-  location: z.string().min(2, "Location is required"),
-  role: z.enum(["supplier", "customer"], {
-    required_error: "Please select a role",
-  }),
-});
+const formSchema = z
+  .object({
+    email: z.string().email("Invalid email address"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: z.string(),
+    role: z.enum(["customer", "supplier", "employee"]),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
+
+type FormData = z.infer<typeof formSchema>;
 
 export default function RegisterPage() {
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClient();
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
       password: "",
-      phone: "",
-      location: "",
-      role: undefined,
+      confirmPassword: "",
+      role: "customer",
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (values: FormData) => {
+    setIsLoading(true);
+
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: values.email,
-        password: values.password,
-        options: {
-          data: {
-            phone: values.phone,
-            location: values.location,
-            role: values.role,
-          },
-        },
+      const { data, error } = await signUp(
+        values.email,
+        values.password,
+        values.role,
+        {}
+      );
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Please check your email to verify your account.",
       });
 
-      if (authError) throw authError;
-
-      if (authData.user) {
-        // Create profile based on role
-        const profile = {
-          user_id: authData.user.id,
-          email: values.email,
-          phone: values.phone,
-          location: values.location,
-        };
-
-        const { error: profileError } = await supabase
-          .from(values.role === "supplier" ? "suppliers" : "customers")
-          .insert({
-            ...profile,
-            name: values.email.split("@")[0], // Temporary name from email
-            contact_person: values.email.split("@")[0], // Temporary contact person
-          });
-
-        if (profileError) throw profileError;
-
-        toast({
-          title: "Registration successful",
-          description: "Please check your email to verify your account.",
-        });
-
-        router.push("/auth/login");
-      }
-    } catch (error: any) {
+      router.push("/auth/login");
+    } catch (err: any) {
+      console.error("Registration error:", err);
       toast({
         title: "Error",
-        description: error.message || "Registration failed",
+        description: err.message || "Failed to create account",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md w-96">
-        <h1 className="text-2xl font-bold mb-6">Register</h1>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
+        <div className="space-y-2 text-center">
+          <h1 className="text-3xl font-bold">Create an Account</h1>
+          <p className="text-muted-foreground">
+            Enter your details to create your account
+          </p>
+        </div>
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -121,12 +105,17 @@ export default function RegisterPage() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" {...field} />
+                    <Input
+                      placeholder="email@example.com"
+                      type="email"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name="password"
@@ -140,64 +129,61 @@ export default function RegisterPage() {
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
-              name="phone"
+              name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Phone</FormLabel>
+                  <FormLabel>Confirm Password</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input type="password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="location"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Location</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
             <FormField
               control={form.control}
               name="role"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Register as</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormLabel>Role</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select your role" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="supplier">Supplier</SelectItem>
                       <SelectItem value="customer">Customer</SelectItem>
+                      <SelectItem value="supplier">Supplier</SelectItem>
+                      <SelectItem value="employee">Employee</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full">
-              Register
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Creating account..." : "Create account"}
             </Button>
           </form>
         </Form>
-        <p className="mt-4 text-center text-sm text-gray-600">
-          Already have an account?{" "}
-          <Link href="/auth/login" className="text-primary hover:underline">
-            Login
-          </Link>
-        </p>
+
+        <div className="text-center text-sm">
+          <p className="text-muted-foreground">
+            Already have an account?{" "}
+            <Link href="/auth/login" className="text-primary hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
