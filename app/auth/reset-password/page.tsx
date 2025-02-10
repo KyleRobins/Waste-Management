@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { updatePassword } from "@/lib/services/auth.service";
-import { createClient } from "@/lib/supabase/client"; // Correct import
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { FormEvent } from "react";
 
 const formSchema = z
   .object({
@@ -37,9 +36,14 @@ export default function ResetPassword() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const supabase = createClient();
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
-  const token = searchParams.get("token");
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      password: "",
+      confirmPassword: "",
+    },
+  });
 
   useEffect(() => {
     const handlePasswordReset = async () => {
@@ -61,6 +65,7 @@ export default function ResetPassword() {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
 
         if (error) {
+          console.error("Reset password error:", error);
           toast({
             title: "Error",
             description: "Invalid or expired password reset link",
@@ -72,6 +77,7 @@ export default function ResetPassword() {
 
         setValidSession(true);
       } catch (error: any) {
+        console.error("Reset password error:", error);
         toast({
           title: "Error",
           description: error.message || "Something went wrong",
@@ -84,41 +90,26 @@ export default function ResetPassword() {
     handlePasswordReset();
   }, [searchParams, router, toast]);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      password: "",
-      confirmPassword: "",
-    },
-  });
-
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError("");
-    const formData = new FormData(e.currentTarget);
-    const password = formData.get("password") as string;
-    const confirmPassword = formData.get("confirmPassword") as string;
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      const response = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+      setLoading(true);
+      await updatePassword(values.password);
+      
+      toast({
+        title: "Success",
+        description: "Your password has been reset successfully",
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to reset password");
-      }
-
-      setSuccess(true);
-    } catch (err: any) {
-      setError(err.message);
+      
+      router.push("/auth/login?message=Password reset successful. Please log in with your new password.");
+    } catch (error: any) {
+      console.error("Reset password error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to reset password",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -146,7 +137,7 @@ export default function ResetPassword() {
         </div>
 
         <Form {...form}>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="password"

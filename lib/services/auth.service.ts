@@ -3,8 +3,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { AuthError, Session } from "@supabase/supabase-js";
 
-const supabase = createClient();
-
 export type UserRole = "admin" | "employee" | "customer" | "supplier";
 
 export const signUp = async (
@@ -14,7 +12,7 @@ export const signUp = async (
   metadata: any = {}
 ) => {
   try {
-    validateSupabaseConfig();
+    const supabase = createClient();
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -24,7 +22,7 @@ export const signUp = async (
           ...metadata,
           role,
         },
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -49,7 +47,7 @@ export const signUp = async (
 
 export const signIn = async (email: string, password: string) => {
   try {
-    validateSupabaseConfig();
+    const supabase = createClient();
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -84,6 +82,7 @@ export const signIn = async (email: string, password: string) => {
 
 export const resetPassword = async (email: string) => {
   try {
+    const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
     });
@@ -97,11 +96,19 @@ export const resetPassword = async (email: string) => {
 
 export const updatePassword = async (newPassword: string) => {
   try {
+    const supabase = createClient();
     const { data, error } = await supabase.auth.updateUser({
       password: newPassword,
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error updating password:", error);
+      throw error;
+    }
+
+    // Sign out the user after password update to force re-login
+    await supabase.auth.signOut();
+    
     return data;
   } catch (error) {
     console.error("Error in updatePassword:", error);
@@ -111,6 +118,7 @@ export const updatePassword = async (newPassword: string) => {
 
 export const signOut = async () => {
   try {
+    const supabase = createClient();
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   } catch (error) {
@@ -121,6 +129,7 @@ export const signOut = async () => {
 
 export const getCurrentUser = async () => {
   try {
+    const supabase = createClient();
     const {
       data: { user },
       error,
@@ -152,6 +161,7 @@ export const checkPermission = async (
 
 export const getSession = async (): Promise<Session | null> => {
   try {
+    const supabase = createClient();
     const {
       data: { session },
       error,
@@ -161,16 +171,5 @@ export const getSession = async (): Promise<Session | null> => {
   } catch (error) {
     console.error("Error in getSession:", error);
     return null;
-  }
-};
-
-const validateSupabaseConfig = () => {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    throw new Error(
-      "Missing Supabase configuration. Please check your environment variables."
-    );
   }
 };
