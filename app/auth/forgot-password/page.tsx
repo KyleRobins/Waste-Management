@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { resetPassword } from "@/lib/services/auth.service";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -28,6 +28,7 @@ export default function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const supabase = createClientComponentClient();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -39,7 +40,12 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setLoading(true);
-      await resetPassword(values.email);
+      const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
+
+      if (error) throw error;
+
       setSubmitted(true);
       toast({
         title: "Success",
@@ -114,10 +120,7 @@ export default function ForgotPasswordPage() {
         </Form>
 
         <div className="text-center text-sm">
-          <Link
-            href="/auth/login"
-            className="text-primary hover:underline"
-          >
+          <Link href="/auth/login" className="text-primary hover:underline">
             Back to Login
           </Link>
         </div>

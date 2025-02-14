@@ -1,0 +1,18 @@
+{
+  "watch": [
+    "app/**/*",
+    "lib/**/*",
+    "components/**/*",
+    "styles/**/*",
+    "public/**/*",
+    "next.config.js"
+  ],
+  "ext": "ts,tsx,js,jsx,json,css",
+  "ignore": [
+    ".git",
+    "node_modules/**/node_modules",
+    ".next",
+    "out"
+  ],
+  "exec": "next dev"
+} 

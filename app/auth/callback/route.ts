@@ -3,52 +3,41 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  try {
-    const requestUrl = new URL(request.url);
-    const code = requestUrl.searchParams.get("code");
-    const next = requestUrl.searchParams.get("next") || "/";
-    const error = requestUrl.searchParams.get("error");
-    const error_description = requestUrl.searchParams.get("error_description");
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get("code");
+  const token = requestUrl.searchParams.get("token");
+  const type = requestUrl.searchParams.get("type");
 
-    // If there's an error, redirect to login with the error message
-    if (error) {
+  // For password reset flow
+  if (type === 'recovery' && token) {
+    // Pass all necessary parameters to the reset password page
+    const resetPasswordUrl = new URL('/auth/reset-password', requestUrl.origin);
+    
+    // Copy all query parameters from the original request
+    requestUrl.searchParams.forEach((value, key) => {
+      resetPasswordUrl.searchParams.set(key, value);
+    });
+
+    return NextResponse.redirect(resetPasswordUrl);
+  }
+
+  // For login/signup flow
+  if (code) {
+    const supabase = createRouteHandlerClient({ cookies });
+    try {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+
+      return NextResponse.redirect(new URL('/', requestUrl.origin));
+    } catch (error) {
+      console.error('Auth callback error:', error);
       return NextResponse.redirect(
-        new URL(
-          `/auth/login?error=${encodeURIComponent(error_description || error)}`,
-          requestUrl.origin
-        )
+        new URL('/auth/login?error=Authentication failed', requestUrl.origin)
       );
     }
-
-    if (code) {
-      const supabase = createRouteHandlerClient({ cookies });
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-      if (error) {
-        console.error("Auth callback error:", error);
-        return NextResponse.redirect(
-          new URL(
-            `/auth/login?error=${encodeURIComponent(error.message)}`,
-            requestUrl.origin
-          )
-        );
-      }
-
-      // Successful verification
-      return NextResponse.redirect(new URL(next, requestUrl.origin));
-    }
-
-    // No code provided
-    return NextResponse.redirect(
-      new URL("/auth/login?error=Invalid verification link", requestUrl.origin)
-    );
-  } catch (error: any) {
-    console.error("Auth callback error:", error);
-    return NextResponse.redirect(
-      new URL(
-        `/auth/login?error=${encodeURIComponent(error.message || "Something went wrong")}`,
-        request.url
-      )
-    );
   }
+
+  return NextResponse.redirect(
+    new URL('/auth/login?error=Invalid callback', requestUrl.origin)
+  );
 }

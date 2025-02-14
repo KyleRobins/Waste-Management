@@ -2,106 +2,59 @@ import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const publicRoutes = [
-  "/auth/login",
-  "/auth/register",
-  "/auth/forgot-password",
-  "/auth/reset-password",
-];
-
-const roleRoutes = {
-  admin: [
-    "/dashboard",
-    "/employees",
-    "/suppliers",
-    "/customers",
-    "/products",
-    "/waste-records",
-  ],
-  employee: ["/dashboard", "/waste-records"],
-  supplier: ["/supplier-portal", "/products"],
-  customer: ["/customer-portal"],
-};
-
 export async function middleware(req: NextRequest) {
-  try {
-    // Create a Supabase client configured to use cookies
-    const supabase = createMiddlewareClient({ req, res: NextResponse.next() });
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req, res });
 
-    // Refresh session if expired - required for Server Components
-    await supabase.auth.getSession();
+  try {
+    // Refresh session if expired
+    const { data: { session }, error } = await supabase.auth.getSession();
 
     const path = req.nextUrl.pathname;
 
-    // Allow public assets
+    // Allow public routes and assets
     if (
-      path.startsWith("/_next") ||
-      path.startsWith("/api") ||
-      path.startsWith("/static")
+      path.startsWith('/_next') ||
+      path.startsWith('/api') ||
+      path.startsWith('/static') ||
+      path === '/auth/login' ||
+      path === '/auth/register' ||
+      path === '/auth/forgot-password' ||
+      path === '/auth/reset-password' ||
+      path.startsWith('/auth/callback')
     ) {
-      return NextResponse.next();
+      return res;
     }
 
-    // Handle root path
-    if (path === "/") {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
-        return NextResponse.redirect(new URL("/auth/login", req.url));
-      }
-      // Redirect to appropriate dashboard based on role
-      const userRole = session.user.user_metadata
-        .role as keyof typeof roleRoutes;
-      const defaultRoute = roleRoutes[userRole]?.[0] || "/dashboard";
-      return NextResponse.redirect(new URL(defaultRoute, req.url));
-    }
-
-    // Handle authentication
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    // Redirect unauthenticated users to login
     if (!session) {
-      // Allow access to public routes
-      if (publicRoutes.includes(path)) {
-        return NextResponse.next();
-      }
-      // Redirect to login for protected routes
-      return NextResponse.redirect(new URL("/auth/login", req.url));
+      return NextResponse.redirect(new URL('/auth/login', req.url));
     }
 
-    // Prevent authenticated users from accessing auth pages
-    if (publicRoutes.includes(path)) {
-      const userRole = session.user.user_metadata
-        .role as keyof typeof roleRoutes;
-      const defaultRoute = roleRoutes[userRole]?.[0] || "/dashboard";
-      return NextResponse.redirect(new URL(defaultRoute, req.url));
-    }
+    // Handle role-based access
+    const userRole = session.user.user_metadata.role;
+    const roleRoutes = {
+      admin: ['/dashboard', '/admin'],
+      employee: ['/dashboard'],
+      supplier: ['/supplier-portal'],
+      customer: ['/customer-portal'],
+    };
 
-    // Check role-based access
-    const userRole = session.user.user_metadata.role as keyof typeof roleRoutes;
-    const hasAccess =
-      userRole === "admin" ||
-      roleRoutes[userRole]?.some((route) => path.startsWith(route));
+    const allowedRoutes = roleRoutes[userRole as keyof typeof roleRoutes] || [];
+    const hasAccess = allowedRoutes.some(route => path.startsWith(route));
 
     if (!hasAccess) {
-      const defaultRoute = roleRoutes[userRole]?.[0] || "/dashboard";
-      return NextResponse.redirect(new URL(defaultRoute, req.url));
+      // Redirect to default route for role
+      return NextResponse.redirect(new URL(allowedRoutes[0] || '/auth/login', req.url));
     }
 
-    return NextResponse.next();
+    return res;
   } catch (error) {
-    console.error("Middleware error:", error);
-    return NextResponse.next();
+    console.error('Middleware error:', error);
+    return res;
   }
 }
 
-// Specify which routes should be protected
 export const config = {
-  matcher: [
-    // Protected routes
-    "/dashboard/:path*",
-    "/admin/:path*",
-    // Add other protected routes here
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

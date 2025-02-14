@@ -83,20 +83,33 @@ export const signIn = async (email: string, password: string) => {
 export const resetPassword = async (email: string) => {
   try {
     const supabase = createClient();
+    
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
+      captchaToken: undefined,
     });
 
     if (error) throw error;
+    return { error: null };
   } catch (error) {
     console.error("Error in resetPassword:", error);
-    throw error;
+    return { 
+      error: error instanceof AuthError ? error : new Error("Failed to send reset instructions") 
+    };
   }
 };
 
 export const updatePassword = async (newPassword: string) => {
   try {
     const supabase = createClient();
+
+    // First, get the session to ensure we're authenticated
+    const { data: sessionData } = await supabase.auth.getSession();
+
+    if (!sessionData.session) {
+      throw new Error("No active session found");
+    }
+
     const { data, error } = await supabase.auth.updateUser({
       password: newPassword,
     });
@@ -108,7 +121,7 @@ export const updatePassword = async (newPassword: string) => {
 
     // Sign out the user after password update to force re-login
     await supabase.auth.signOut();
-    
+
     return data;
   } catch (error) {
     console.error("Error in updatePassword:", error);
