@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { LordIcon } from "@/components/ui/lord-icon";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -96,6 +97,17 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
         <div className="space-y-2 text-center">
+          <div className="flex justify-center">
+            <LordIcon
+              src="https://cdn.lordicon.com/itysowyb.json"
+              trigger="loop"
+              size={120}
+              colors={{
+                primary: "#16a34a",
+                secondary: "#22c55e"
+              }}
+            />
+          </div>
           <h1 className="text-3xl font-bold">Welcome Back</h1>
           <p className="text-muted-foreground">
             Enter your credentials to access your account
