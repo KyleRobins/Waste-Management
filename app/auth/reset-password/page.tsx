@@ -57,15 +57,7 @@ export default function ResetPassword() {
           throw new Error("Invalid reset link");
         }
 
-        // First exchange the token for a session
-        const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(token);
-        
-        if (sessionError) {
-          console.error("Session exchange error:", sessionError);
-          throw sessionError;
-        }
-
-        // Then verify the recovery token
+        // Verify the recovery token
         const { error: verifyError } = await supabase.auth.verifyOtp({
           token,
           type: 'recovery'

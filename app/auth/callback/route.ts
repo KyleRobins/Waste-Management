@@ -12,11 +12,8 @@ export async function GET(request: Request) {
   if (type === 'recovery' && token) {
     // Pass all necessary parameters to the reset password page
     const resetPasswordUrl = new URL('/auth/reset-password', requestUrl.origin);
-    
-    // Copy all query parameters from the original request
-    requestUrl.searchParams.forEach((value, key) => {
-      resetPasswordUrl.searchParams.set(key, value);
-    });
+    resetPasswordUrl.searchParams.set('token', token);
+    resetPasswordUrl.searchParams.set('type', type);
 
     return NextResponse.redirect(resetPasswordUrl);
   }
