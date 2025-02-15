@@ -48,24 +48,32 @@ export default function ResetPassword() {
   });
 
   useEffect(() => {
+    const token = searchParams.get("token");
+    
+    // If no token is present, redirect to forgot password page
+    if (!token) {
+      toast({
+        title: "Error",
+        description: "Invalid reset link. Please request a new one.",
+        variant: "destructive",
+      });
+      router.push("/auth/forgot-password");
+      return;
+    }
+
     const verifyResetToken = async () => {
       try {
-        const token = searchParams.get("token");
-        const type = searchParams.get("type");
-
-        if (!token || !type) {
-          throw new Error("Invalid reset link");
-        }
-
-        // Verify the recovery token
-        const { error: verifyError } = await supabase.auth.verifyOtp({
+        setLoading(true);
+        
+        // First verify the token
+        const { data, error } = await supabase.auth.verifyOtp({
           token,
-          type: 'recovery'
+          type: 'recovery',
         });
 
-        if (verifyError) {
-          console.error("Token verification error:", verifyError);
-          throw verifyError;
+        if (error) {
+          console.error("Token verification error:", error);
+          throw error;
         }
 
         setIsValidToken(true);
@@ -77,12 +85,12 @@ export default function ResetPassword() {
           variant: "destructive",
         });
         router.push("/auth/forgot-password");
+      } finally {
+        setLoading(false);
       }
     };
 
-    if (searchParams.get("token")) {
-      verifyResetToken();
-    }
+    verifyResetToken();
   }, [searchParams, router, toast, supabase.auth]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -105,10 +113,8 @@ export default function ResetPassword() {
       // Sign out any existing session
       await supabase.auth.signOut();
 
-      // Redirect to login after a short delay to show the success message
-      setTimeout(() => {
-        router.push("/auth/login?message=Password reset successful. Please log in with your new password.");
-      }, 2000);
+      // Redirect to login
+      router.push("/auth/login?message=Password reset successful. Please log in with your new password.");
 
     } catch (error: any) {
       console.error("Reset password error:", error);
@@ -123,7 +129,7 @@ export default function ResetPassword() {
   };
 
   // Show loading state while verifying token
-  if (!isValidToken) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
@@ -134,6 +140,11 @@ export default function ResetPassword() {
         </div>
       </div>
     );
+  }
+
+  // Only show the form if the token is valid
+  if (!isValidToken) {
+    return null;
   }
 
   return (
