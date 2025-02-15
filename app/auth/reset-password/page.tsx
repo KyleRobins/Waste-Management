@@ -20,7 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z
   .object({
-    password: z.string()
+    password: z
+      .string()
       .min(6, "Password must be at least 6 characters")
       .max(72, "Password must be less than 72 characters"),
     confirmPassword: z.string(),
@@ -49,7 +50,7 @@ export default function ResetPassword() {
 
   useEffect(() => {
     const token = searchParams.get("token");
-    
+
     // If no token is present, redirect to forgot password page
     if (!token) {
       toast({
@@ -64,24 +65,16 @@ export default function ResetPassword() {
     const verifyResetToken = async () => {
       try {
         setLoading(true);
-        
-        // First verify the token
-        const { data, error } = await supabase.auth.verifyOtp({
-          token,
-          type: 'recovery',
-        });
 
-        if (error) {
-          console.error("Token verification error:", error);
-          throw error;
-        }
-
+        // The token was already verified in the callback route
+        // Just set the valid state
         setIsValidToken(true);
       } catch (error: any) {
         console.error("Token verification error:", error);
         toast({
           title: "Error",
-          description: "Invalid or expired reset link. Please request a new one.",
+          description:
+            "Invalid or expired reset link. Please request a new one.",
           variant: "destructive",
         });
         router.push("/auth/forgot-password");
@@ -91,7 +84,7 @@ export default function ResetPassword() {
     };
 
     verifyResetToken();
-  }, [searchParams, router, toast, supabase.auth]);
+  }, [searchParams, router, toast]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
@@ -99,7 +92,7 @@ export default function ResetPassword() {
 
       // Update the password
       const { error } = await supabase.auth.updateUser({
-        password: values.password
+        password: values.password,
       });
 
       if (error) throw error;
@@ -107,15 +100,17 @@ export default function ResetPassword() {
       // Show success message
       toast({
         title: "Success",
-        description: "Your password has been reset successfully. Please log in with your new password.",
+        description:
+          "Your password has been reset successfully. Please log in with your new password.",
       });
 
       // Sign out any existing session
       await supabase.auth.signOut();
 
       // Redirect to login
-      router.push("/auth/login?message=Password reset successful. Please log in with your new password.");
-
+      router.push(
+        "/auth/login?message=Password reset successful. Please log in with your new password."
+      );
     } catch (error: any) {
       console.error("Reset password error:", error);
       toast({
@@ -135,7 +130,9 @@ export default function ResetPassword() {
         <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
           <div className="space-y-2 text-center">
             <h1 className="text-2xl font-bold">Verifying Reset Link</h1>
-            <p className="text-muted-foreground">Please wait while we verify your reset link...</p>
+            <p className="text-muted-foreground">
+              Please wait while we verify your reset link...
+            </p>
           </div>
         </div>
       </div>
@@ -164,10 +161,10 @@ export default function ResetPassword() {
                 <FormItem>
                   <FormLabel>New Password</FormLabel>
                   <FormControl>
-                    <Input 
-                      type="password" 
+                    <Input
+                      type="password"
                       placeholder="Enter your new password"
-                      {...field} 
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
@@ -182,10 +179,10 @@ export default function ResetPassword() {
                 <FormItem>
                   <FormLabel>Confirm New Password</FormLabel>
                   <FormControl>
-                    <Input 
-                      type="password" 
+                    <Input
+                      type="password"
                       placeholder="Confirm your new password"
-                      {...field} 
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />

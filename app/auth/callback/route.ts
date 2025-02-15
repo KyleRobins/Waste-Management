@@ -8,14 +8,39 @@ export async function GET(request: Request) {
   const token = requestUrl.searchParams.get("token");
   const type = requestUrl.searchParams.get("type");
 
-  // For password reset flow
+  // For password reset flow with PKCE token
   if (type === 'recovery' && token) {
-    // Pass all necessary parameters to the reset password page
+    // Create the reset password URL with all necessary parameters
     const resetPasswordUrl = new URL('/auth/reset-password', requestUrl.origin);
+    
+    // Pass all necessary parameters
     resetPasswordUrl.searchParams.set('token', token);
     resetPasswordUrl.searchParams.set('type', type);
 
-    return NextResponse.redirect(resetPasswordUrl);
+    // Create Supabase client to handle the verification
+    const supabase = createRouteHandlerClient({ cookies });
+
+    try {
+      // Verify the token first
+      const { error } = await supabase.auth.verifyOtp({
+        token,
+        type: 'recovery'
+      });
+
+      if (error) {
+        console.error('Token verification error:', error);
+        return NextResponse.redirect(
+          new URL('/auth/forgot-password?error=Invalid or expired reset link', requestUrl.origin)
+        );
+      }
+
+      return NextResponse.redirect(resetPasswordUrl);
+    } catch (error) {
+      console.error('Recovery verification error:', error);
+      return NextResponse.redirect(
+        new URL('/auth/forgot-password?error=Invalid or expired reset link', requestUrl.origin)
+      );
+    }
   }
 
   // For login/signup flow
