@@ -44,6 +44,7 @@
     "recharts": "2.10.3",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
+    "vercel": "^41.1.4",
     "xlsx": "^0.18.5",
     "zod": "^3.24.1"
   },
