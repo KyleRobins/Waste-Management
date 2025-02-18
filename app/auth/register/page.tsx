@@ -100,6 +100,7 @@ export default function RegisterPage() {
   };
 
   const passwordValue = form.watch("password");
+  const confirmPasswordValue = form.watch("confirmPassword");
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -266,7 +267,10 @@ export default function RegisterPage() {
               />
             </div>
 
-            <PasswordRequirements password={passwordValue || ""} />
+            <PasswordRequirements
+              password={passwordValue}
+              confirmPassword={confirmPasswordValue}
+            />
 
             <FormField
               control={form.control}
