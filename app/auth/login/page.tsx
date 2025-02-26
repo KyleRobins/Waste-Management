@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,7 +27,6 @@ const formSchema = z.object({
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
   const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -61,17 +60,10 @@ export default function LoginPage() {
     },
   });
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError("");
-
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      const formData = new FormData(e.currentTarget);
-      const email = formData.get("email")?.toString() || "";
-      const password = formData.get("password")?.toString() || "";
-
-      const { data, error, role } = await signIn(email, password);
+      setIsLoading(true);
+      const { data, error, role } = await signIn(values.email, values.password);
 
       if (error) throw error;
 
@@ -83,11 +75,13 @@ export default function LoginPage() {
         customer: "/customer-portal",
       };
 
-      router.push(
-        redirectMap[role as keyof typeof redirectMap] || "/dashboard"
-      );
+      router.push(redirectMap[role as keyof typeof redirectMap] || "/dashboard");
     } catch (err: any) {
-      setError(err.message || "Failed to login");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to sign in",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +109,7 @@ export default function LoginPage() {
         </div>
 
         <Form {...form}>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="email"

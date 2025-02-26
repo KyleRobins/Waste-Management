@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { updatePassword } from "@/lib/services/auth.service";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -17,26 +17,26 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { PasswordRequirements } from "@/components/ui/password-requirements";
 
-const formSchema = z
-  .object({
-    password: z
-      .string()
-      .min(6, "Password must be at least 6 characters")
-      .max(72, "Password must be less than 72 characters"),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+const formSchema = z.object({
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
+  confirmPassword: z.string()
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
 
 export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
-  const [isValidToken, setIsValidToken] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClientComponentClient();
   const searchParams = useSearchParams();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -45,74 +45,22 @@ export default function ResetPassword() {
       password: "",
       confirmPassword: "",
     },
-    mode: "onChange",
   });
-
-  useEffect(() => {
-    const token = searchParams.get("token");
-
-    // If no token is present, redirect to forgot password page
-    if (!token) {
-      toast({
-        title: "Error",
-        description: "Invalid reset link. Please request a new one.",
-        variant: "destructive",
-      });
-      router.push("/auth/forgot-password");
-      return;
-    }
-
-    const verifyResetToken = async () => {
-      try {
-        setLoading(true);
-
-        // The token was already verified in the callback route
-        // Just set the valid state
-        setIsValidToken(true);
-      } catch (error: any) {
-        console.error("Token verification error:", error);
-        toast({
-          title: "Error",
-          description:
-            "Invalid or expired reset link. Please request a new one.",
-          variant: "destructive",
-        });
-        router.push("/auth/forgot-password");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    verifyResetToken();
-  }, [searchParams, router, toast]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setLoading(true);
-
-      // Update the password
-      const { error } = await supabase.auth.updateUser({
-        password: values.password,
-      });
+      const { error } = await updatePassword(values.password);
 
       if (error) throw error;
 
-      // Show success message
       toast({
         title: "Success",
-        description:
-          "Your password has been reset successfully. Please log in with your new password.",
+        description: "Your password has been reset successfully. Please log in with your new password.",
       });
 
-      // Sign out any existing session
-      await supabase.auth.signOut();
-
-      // Redirect to login
-      router.push(
-        "/auth/login?message=Password reset successful. Please log in with your new password."
-      );
+      router.push("/auth/login?message=Password reset successful. Please log in with your new password.");
     } catch (error: any) {
-      console.error("Reset password error:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to reset password",
@@ -123,26 +71,8 @@ export default function ResetPassword() {
     }
   };
 
-  // Show loading state while verifying token
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
-          <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-bold">Verifying Reset Link</h1>
-            <p className="text-muted-foreground">
-              Please wait while we verify your reset link...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Only show the form if the token is valid
-  if (!isValidToken) {
-    return null;
-  }
+  const passwordValue = form.watch("password");
+  const confirmPasswordValue = form.watch("confirmPassword");
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -188,6 +118,11 @@ export default function ResetPassword() {
                   <FormMessage />
                 </FormItem>
               )}
+            />
+
+            <PasswordRequirements
+              password={passwordValue}
+              confirmPassword={confirmPasswordValue}
             />
 
             <Button type="submit" className="w-full" disabled={loading}>

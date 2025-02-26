@@ -7,7 +7,6 @@ export async function middleware(req: NextRequest) {
   const supabase = createMiddlewareClient({ req, res });
 
   try {
-    // Refresh session if expired
     const { data: { session }, error } = await supabase.auth.getSession();
 
     const path = req.nextUrl.pathname;
@@ -31,27 +30,32 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/auth/login', req.url));
     }
 
-    // Handle role-based access
+    // Get user role from session metadata
     const userRole = session.user.user_metadata.role;
+
+    // Define role-based route mappings
     const roleRoutes = {
-      admin: ['/dashboard', '/admin'],
-      employee: ['/dashboard'],
+      admin: ['/dashboard', '/admin', '/customers', '/suppliers', '/employees', '/products', '/waste-records', '/reports', '/messages', '/payments'],
+      employee: ['/dashboard', '/customers', '/suppliers', '/products', '/waste-records'],
       supplier: ['/supplier-portal'],
       customer: ['/customer-portal'],
     };
 
     const allowedRoutes = roleRoutes[userRole as keyof typeof roleRoutes] || [];
+
+    // Check if user has access to the requested path
     const hasAccess = allowedRoutes.some(route => path.startsWith(route));
 
     if (!hasAccess) {
-      // Redirect to default route for role
-      return NextResponse.redirect(new URL(allowedRoutes[0] || '/auth/login', req.url));
+      // Redirect to the default route for their role
+      const defaultRoute = allowedRoutes[0] || '/auth/login';
+      return NextResponse.redirect(new URL(defaultRoute, req.url));
     }
 
     return res;
   } catch (error) {
     console.error('Middleware error:', error);
-    return res;
+    return NextResponse.redirect(new URL('/auth/login', req.url));
   }
 }
 

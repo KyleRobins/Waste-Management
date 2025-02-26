@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,8 +16,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import Link from "next/link";
 import {
   Select,
   SelectContent,
@@ -25,8 +23,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 import { LordIcon } from "@/components/ui/lord-icon";
 import { PasswordRequirements } from "@/components/ui/password-requirements";
+import { createClient } from "@/lib/supabase/client";
 
 const formSchema = z
   .object({
@@ -42,7 +43,7 @@ const formSchema = z
         "Password must contain at least one special character"
       ),
     confirmPassword: z.string(),
-    role: z.enum(["customer", "supplier", "employee"]),
+    role: z.enum(["admin", "customer", "supplier", "employee"]),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
@@ -55,8 +56,26 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isFirstUser, setIsFirstUser] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const supabase = createClient();
+
+  useEffect(() => {
+    const checkFirstUser = async () => {
+      try {
+        const { count } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true });
+        
+        setIsFirstUser(count === 0);
+      } catch (error) {
+        console.error('Error checking first user:', error);
+      }
+    };
+
+    checkFirstUser();
+  }, []);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -72,7 +91,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await signUp(
+      const { data, error, role, message } = await signUp(
         values.email,
         values.password,
         values.role,
@@ -83,7 +102,7 @@ export default function RegisterPage() {
 
       toast({
         title: "Success",
-        description: "Please check your email to verify your account.",
+        description: message || "Please check your email to verify your account.",
       });
 
       router.push("/auth/login");
@@ -288,6 +307,9 @@ export default function RegisterPage() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      {isFirstUser && (
+                        <SelectItem value="admin">Admin</SelectItem>
+                      )}
                       <SelectItem value="customer">Customer</SelectItem>
                       <SelectItem value="supplier">Supplier</SelectItem>
                       <SelectItem value="employee">Employee</SelectItem>
