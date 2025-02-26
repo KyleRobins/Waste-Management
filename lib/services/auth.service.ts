@@ -8,13 +8,13 @@ export type UserRole = "admin" | "employee" | "customer" | "supplier";
 const checkIfFirstUser = async (supabase: ReturnType<typeof createClient>) => {
   try {
     const { count, error } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
+      .from("profiles")
+      .select("*", { count: "exact", head: true });
 
     if (error) throw error;
     return count === 0;
   } catch (error) {
-    console.error('Error checking if first user:', error);
+    console.error("Error checking if first user:", error);
     return false;
   }
 };
@@ -49,7 +49,7 @@ export const signUp = async (
       data,
       error: null,
       role: finalRole,
-      message: isFirstUser 
+      message: isFirstUser
         ? "Account created with admin privileges. Please check your email to verify your account."
         : "Please check your email to verify your account.",
     };
@@ -57,7 +57,10 @@ export const signUp = async (
     console.error("Error in signUp:", error);
     return {
       data: null,
-      error: error instanceof AuthError ? error : new Error("Failed to create account"),
+      error:
+        error instanceof AuthError
+          ? error
+          : new Error("Failed to create account"),
       role: null,
       message: null,
     };
@@ -68,6 +71,19 @@ export const signIn = async (email: string, password: string) => {
   try {
     const supabase = createClient();
 
+    // First, check if the user exists and get their profile
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("email", email)
+      .single();
+
+    if (profileError && profileError.code !== "PGRST116") {
+      // PGRST116 means no rows returned
+      throw profileError;
+    }
+
+    // Attempt to sign in
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -75,16 +91,29 @@ export const signIn = async (email: string, password: string) => {
 
     if (error) throw error;
 
-    // Get user role from metadata
-    const role = data.user?.user_metadata?.role || "customer";
+    // Get user role from profile or metadata
+    const role = profile?.role || data.user?.user_metadata?.role || "customer";
 
-    // Return role along with data for proper redirection
+    // If profile doesn't exist, create it
+    if (!profile) {
+      const { error: insertError } = await supabase.from("profiles").insert({
+        id: data.user.id,
+        email: data.user.email,
+        role: role,
+      });
+
+      if (insertError) throw insertError;
+    }
+
     return { data, error: null, role };
   } catch (error) {
     console.error("Error in signIn:", error);
     return {
       data: null,
-      error: error instanceof AuthError ? error : new Error("An unexpected error occurred"),
+      error:
+        error instanceof AuthError
+          ? error
+          : new Error("An unexpected error occurred"),
       role: null,
     };
   }
@@ -93,7 +122,7 @@ export const signIn = async (email: string, password: string) => {
 export const resetPassword = async (email: string) => {
   try {
     const supabase = createClient();
-    
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
     });
@@ -102,8 +131,11 @@ export const resetPassword = async (email: string) => {
     return { error: null };
   } catch (error) {
     console.error("Error in resetPassword:", error);
-    return { 
-      error: error instanceof AuthError ? error : new Error("Failed to send reset instructions") 
+    return {
+      error:
+        error instanceof AuthError
+          ? error
+          : new Error("Failed to send reset instructions"),
     };
   }
 };
@@ -124,7 +156,10 @@ export const updatePassword = async (newPassword: string) => {
     console.error("Error in updatePassword:", error);
     return {
       data: null,
-      error: error instanceof AuthError ? error : new Error("Failed to update password")
+      error:
+        error instanceof AuthError
+          ? error
+          : new Error("Failed to update password"),
     };
   }
 };
@@ -137,8 +172,9 @@ export const signOut = async () => {
     return { error: null };
   } catch (error) {
     console.error("Error in signOut:", error);
-    return { 
-      error: error instanceof AuthError ? error : new Error("Failed to sign out") 
+    return {
+      error:
+        error instanceof AuthError ? error : new Error("Failed to sign out"),
     };
   }
 };
@@ -146,7 +182,10 @@ export const signOut = async () => {
 export const getCurrentUser = async () => {
   try {
     const supabase = createClient();
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error) throw error;
     return user;
   } catch (error) {
@@ -157,8 +196,15 @@ export const getCurrentUser = async () => {
 
 export const getCurrentUserRole = async (): Promise<UserRole> => {
   try {
-    const user = await getCurrentUser();
-    return (user?.user_metadata?.role as UserRole) || "customer";
+    const supabase = createClient();
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", (await supabase.auth.getUser()).data.user?.id)
+      .single();
+
+    if (error) throw error;
+    return (profile?.role as UserRole) || "customer";
   } catch (error) {
     console.error("Error in getCurrentUserRole:", error);
     throw error;
@@ -168,7 +214,10 @@ export const getCurrentUserRole = async (): Promise<UserRole> => {
 export const getSession = async (): Promise<Session | null> => {
   try {
     const supabase = createClient();
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
     if (error) throw error;
     return session;
   } catch (error) {
