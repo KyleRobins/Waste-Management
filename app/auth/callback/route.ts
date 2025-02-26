@@ -1,6 +1,22 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Missing Supabase environment variables");
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+});
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -118,3 +134,22 @@ export async function GET(request: Request) {
     new URL("/auth/login?error=Invalid callback", requestUrl.origin)
   );
 }
+
+const signIn = async (email: string, password: string) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error("Detailed error:", error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Sign in error:", error);
+    throw error;
+  }
+};
