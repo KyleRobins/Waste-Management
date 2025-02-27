@@ -27,11 +27,11 @@ export async function GET(request: Request) {
     const code = requestUrl.searchParams.get("code");
     const role = requestUrl.searchParams.get("role");
     const isFirstUser = requestUrl.searchParams.get("isFirstUser") === "true";
+    const mode = requestUrl.searchParams.get("mode");
 
     if (code) {
       const supabase = createRouteHandlerClient({ cookies });
 
-      // Exchange the code for a session
       const {
         data: { session },
         error: sessionError,
@@ -39,24 +39,40 @@ export async function GET(request: Request) {
 
       if (sessionError) throw sessionError;
 
-      if (session?.user && role) {
-        // Only update profile if this is a registration (role is present)
-        const { error: updateError } = await supabase.from("profiles").upsert({
-          id: session.user.id,
-          role: isFirstUser ? "admin" : role || "customer",
-          email: session.user.email,
-          updated_at: new Date().toISOString(),
-        });
+      if (session?.user) {
+        if (mode === "register") {
+          // Only update profile for new registrations
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .upsert({
+              id: session.user.id,
+              role: isFirstUser ? "admin" : role || "customer",
+              email: session.user.email,
+              updated_at: new Date().toISOString(),
+            });
 
-        if (updateError) throw updateError;
+          if (updateError) throw updateError;
+        } else {
+          // For login, verify the user exists in profiles
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
+
+          if (profileError || !profile) {
+            throw new Error("User profile not found");
+          }
+        }
       }
+
+      // Successful auth - redirect to dashboard
+      return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
     }
 
-    // Redirect to the dashboard or appropriate page
-    return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
+    throw new Error("No code provided");
   } catch (error) {
     console.error("Auth callback error:", error);
-    // Redirect to login page with error
     return NextResponse.redirect(
       new URL("/auth/login?error=Authentication%20failed", request.url)
     );

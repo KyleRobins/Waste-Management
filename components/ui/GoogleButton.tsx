@@ -3,19 +3,17 @@
 import { useRouter } from "next/navigation";
 import { Button } from "./button"; // Assuming you're using shadcn/ui
 import { supabase } from "@/lib/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface GoogleButtonProps {
   role?: string;
   isFirstUser?: boolean;
-  mode?: "login" | "register";
+  mode: "login" | "register";
 }
 
-export function GoogleButton({
-  role,
-  isFirstUser,
-  mode = "register",
-}: GoogleButtonProps) {
+export function GoogleButton({ role, isFirstUser, mode }: GoogleButtonProps) {
   const router = useRouter();
+  const { toast } = useToast();
 
   const handleGoogleSignIn = async () => {
     try {
@@ -23,19 +21,33 @@ export function GoogleButton({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams:
-            mode === "register"
+          queryParams: {
+            ...(mode === "register" && role
               ? {
-                  role: role,
+                  role,
                   isFirstUser: isFirstUser?.toString(),
                 }
-              : undefined,
+              : {}),
+            mode, // Always include the mode
+          },
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
+        throw error;
+      }
     } catch (error) {
       console.error("Google sign in error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to sign in with Google",
+        variant: "destructive",
+      });
     }
   };
 

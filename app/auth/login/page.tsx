@@ -76,7 +76,9 @@ export default function LoginPage() {
         customer: "/customer-portal",
       };
 
-      router.push(redirectMap[role as keyof typeof redirectMap] || "/dashboard");
+      router.push(
+        redirectMap[role as keyof typeof redirectMap] || "/dashboard"
+      );
     } catch (err: any) {
       toast({
         title: "Error",
@@ -99,7 +101,7 @@ export default function LoginPage() {
               size={120}
               colors={{
                 primary: "#16a34a",
-                secondary: "#22c55e"
+                secondary: "#22c55e",
               }}
             />
           </div>

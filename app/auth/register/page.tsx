@@ -183,7 +183,11 @@ export default function RegisterPage() {
                 )}
               />
 
-              <GoogleButton role={selectedRole} isFirstUser={isFirstUser} />
+              <GoogleButton 
+                mode="register"
+                role={selectedRole}
+                isFirstUser={isFirstUser}
+              />
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
