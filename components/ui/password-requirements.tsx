@@ -1,3 +1,5 @@
+"use client";
+
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -78,41 +80,52 @@ export function PasswordRequirements({
   }, [password, confirmPassword]);
 
   return (
-    <div className="text-sm space-y-2 mt-2">
-      <p className="text-muted-foreground">Password requirements:</p>
-      <div className="space-y-2">
-        {requirements.map((requirement, index) => {
-          const isMet = requirement.validator(password || "");
-          if (!requirement.isVisible) return null;
-
-          return (
-            <div
-              key={index}
-              className={cn(
-                "flex items-center space-x-2 transition-all duration-300",
-                isMet ? "text-green-500" : "text-muted-foreground",
-                "animate-in fade-in-0 slide-in-from-left-5"
-              )}
-            >
-              <div className="w-5 h-5 flex items-center justify-center">
-                {isMet ? (
-                  <Check className="w-4 h-4 animate-in fade-in-50" />
-                ) : (
-                  <X className="w-4 h-4" />
-                )}
-              </div>
-              <span
-                className={cn(
-                  "transition-all duration-300 relative",
-                  isMet && "line-through"
-                )}
+    <div className="space-y-2 transition-all duration-200 ease-in-out">
+      <p className="text-sm font-medium text-muted-foreground">
+        Password requirements:
+      </p>
+      <ul className="text-sm space-y-1">
+        {requirements.map((requirement, index) => (
+          <li
+            key={index}
+            className={cn(
+              "flex items-center gap-2",
+              requirement.validator(password || "")
+                ? "text-green-600"
+                : "text-muted-foreground"
+            )}
+          >
+            {requirement.validator(password || "") ? (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="w-4 h-4"
               >
-                {requirement.text}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            ) : (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="w-4 h-4"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+            {requirement.text}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

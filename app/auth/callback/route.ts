@@ -19,120 +19,45 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 export async function GET(request: Request) {
-  const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
-  const token = requestUrl.searchParams.get("token");
-  const type = requestUrl.searchParams.get("type");
+  try {
+    const requestUrl = new URL(request.url);
+    const code = requestUrl.searchParams.get("code");
+    const role = requestUrl.searchParams.get("role");
+    const isFirstUser = requestUrl.searchParams.get("isFirstUser") === "true";
 
-  // For password reset flow with PKCE token
-  if (type === "recovery" && token) {
-    // Create the reset password URL with all necessary parameters
-    const resetPasswordUrl = new URL("/auth/reset-password", requestUrl.origin);
+    if (code) {
+      const supabase = createRouteHandlerClient({ cookies });
 
-    // Pass all necessary parameters
-    resetPasswordUrl.searchParams.set("token", token);
-    resetPasswordUrl.searchParams.set("type", type);
-
-    // Create Supabase client to handle the verification
-    const supabase = createRouteHandlerClient({ cookies });
-
-    try {
-      // Verify the token first
-      const { error } = await supabase.auth.verifyOtp({
-        token,
-        type: "recovery",
-      });
-
-      if (error) {
-        console.error("Token verification error:", error);
-        return NextResponse.redirect(
-          new URL(
-            "/auth/forgot-password?error=Invalid or expired reset link",
-            requestUrl.origin
-          )
-        );
-      }
-
-      return NextResponse.redirect(resetPasswordUrl);
-    } catch (error) {
-      console.error("Recovery verification error:", error);
-      return NextResponse.redirect(
-        new URL(
-          "/auth/forgot-password?error=Invalid or expired reset link",
-          requestUrl.origin
-        )
-      );
-    }
-  }
-
-  // For login/signup flow
-  if (code) {
-    const supabase = createRouteHandlerClient({ cookies });
-    try {
+      // Exchange the code for a session
       const {
-        data: { user },
-        error: exchangeError,
+        data: { session },
+        error: sessionError,
       } = await supabase.auth.exchangeCodeForSession(code);
 
-      if (exchangeError) throw exchangeError;
+      if (sessionError) throw sessionError;
 
-      if (!user) throw new Error("No user found");
-
-      // Check if profile exists
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError && profileError.code !== "PGRST116") {
-        // PGRST116 means no rows returned
-        throw profileError;
-      }
-
-      // If profile doesn't exist, create it
-      if (!profile) {
-        const { error: insertError } = await supabase.from("profiles").insert({
-          id: user.id,
-          email: user.email,
-          role: user.user_metadata.role || "customer",
+      if (session?.user) {
+        // Update the user's role in your profiles table
+        const { error: updateError } = await supabase.from("profiles").upsert({
+          id: session.user.id,
+          role: isFirstUser ? "admin" : role || "customer",
+          email: session.user.email,
+          updated_at: new Date().toISOString(),
         });
 
-        if (insertError) throw insertError;
+        if (updateError) throw updateError;
       }
-
-      // Get the user's role for redirection
-      const role = user.user_metadata.role || "customer";
-
-      // Role-based redirection
-      let redirectTo = "/";
-      switch (role) {
-        case "admin":
-          redirectTo = "/dashboard";
-          break;
-        case "supplier":
-          redirectTo = "/supplier-portal";
-          break;
-        case "customer":
-          redirectTo = "/customer-portal";
-          break;
-        case "employee":
-          redirectTo = "/dashboard";
-          break;
-      }
-
-      return NextResponse.redirect(new URL(redirectTo, requestUrl.origin));
-    } catch (error) {
-      console.error("Auth callback error:", error);
-      return NextResponse.redirect(
-        new URL("/auth/login?error=Authentication failed", requestUrl.origin)
-      );
     }
-  }
 
-  return NextResponse.redirect(
-    new URL("/auth/login?error=Invalid callback", requestUrl.origin)
-  );
+    // Redirect to the dashboard or appropriate page
+    return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
+  } catch (error) {
+    console.error("Auth callback error:", error);
+    // Redirect to login page with error
+    return NextResponse.redirect(
+      new URL("/auth/login?error=Authentication%20failed", request.url)
+    );
+  }
 }
 
 const signIn = async (email: string, password: string) => {
