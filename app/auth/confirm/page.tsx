@@ -2,10 +2,11 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "your-toast-library";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ConfirmEmail() {
   const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
     const handleEmailConfirmation = async () => {
@@ -16,21 +17,31 @@ export default function ConfirmEmail() {
         const type = params.get("type");
 
         if (token && type === "signup") {
-          toast.success("Email confirmed successfully");
-          router.push("/login");
+          toast({
+            title: "Success",
+            description: "Email confirmed successfully",
+          });
+          router.push("/auth/login");
         }
       } catch (error) {
         console.error("Confirmation error:", error);
-        toast.error("Failed to confirm email");
+        toast({
+          title: "Error",
+          description: "Failed to confirm email",
+          variant: "destructive",
+        });
       }
     };
 
     handleEmailConfirmation();
-  }, [router]);
+  }, [router, toast]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div>Confirming your email...</div>
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="text-center space-y-4">
+        <h1 className="text-2xl font-semibold">Confirming your email...</h1>
+        <p className="text-muted-foreground">Please wait while we verify your email address.</p>
+      </div>
     </div>
   );
 }
