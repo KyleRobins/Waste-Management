@@ -17,35 +17,44 @@ export function GoogleButton({ role, isFirstUser, mode }: GoogleButtonProps) {
 
   const handleGoogleSignIn = async () => {
     try {
+      const redirectURL = new URL("/auth/callback", window.location.origin);
+
+      // Add query parameters
+      const queryParams = new URLSearchParams();
+      queryParams.append("mode", mode);
+
+      if (mode === "register") {
+        if (role) queryParams.append("role", role);
+        if (isFirstUser !== undefined)
+          queryParams.append("isFirstUser", isFirstUser.toString());
+      }
+
+      redirectURL.search = queryParams.toString();
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectURL.toString(),
           queryParams: {
-            ...(mode === "register" && role
-              ? {
-                  role,
-                  isFirstUser: isFirstUser?.toString(),
-                }
-              : {}),
-            mode, // Always include the mode
+            access_type: "offline",
+            prompt: "consent",
           },
         },
       });
 
       if (error) {
+        console.error("Google OAuth error:", error);
         toast({
           title: "Error",
           description: error.message,
           variant: "destructive",
         });
-        throw error;
       }
     } catch (error) {
       console.error("Google sign in error:", error);
       toast({
         title: "Error",
-        description: "Failed to sign in with Google",
+        description: "Failed to sign in with Google. Please try again.",
         variant: "destructive",
       });
     }

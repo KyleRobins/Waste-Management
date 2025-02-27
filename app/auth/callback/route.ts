@@ -22,6 +22,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const supabase = createRouteHandlerClient({ cookies });
+
   try {
     const requestUrl = new URL(request.url);
     const code = requestUrl.searchParams.get("code");
@@ -29,52 +31,80 @@ export async function GET(request: Request) {
     const isFirstUser = requestUrl.searchParams.get("isFirstUser") === "true";
     const mode = requestUrl.searchParams.get("mode");
 
-    if (code) {
-      const supabase = createRouteHandlerClient({ cookies });
-
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.exchangeCodeForSession(code);
-
-      if (sessionError) throw sessionError;
-
-      if (session?.user) {
-        if (mode === "register") {
-          // Only update profile for new registrations
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .upsert({
-              id: session.user.id,
-              role: isFirstUser ? "admin" : role || "customer",
-              email: session.user.email,
-              updated_at: new Date().toISOString(),
-            });
-
-          if (updateError) throw updateError;
-        } else {
-          // For login, verify the user exists in profiles
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", session.user.id)
-            .single();
-
-          if (profileError || !profile) {
-            throw new Error("User profile not found");
-          }
-        }
-      }
-
-      // Successful auth - redirect to dashboard
-      return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
+    if (!code) {
+      throw new Error("No code provided");
     }
 
-    throw new Error("No code provided");
+    // Exchange the code for a session
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (sessionError) {
+      console.error("Session error:", sessionError);
+      throw sessionError;
+    }
+
+    if (!session?.user) {
+      throw new Error("No user in session");
+    }
+
+    // Check if profile exists
+    const { data: existingProfile, error: profileCheckError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", session.user.id)
+      .single();
+
+    if (profileCheckError && profileCheckError.code !== "PGRST116") {
+      // PGRST116 is "not found" error
+      console.error("Profile check error:", profileCheckError);
+      throw profileCheckError;
+    }
+
+    // Create or update profile if it doesn't exist or if in register mode
+    if (!existingProfile || mode === "register") {
+      const { error: upsertError } = await supabase.from("profiles").upsert(
+        {
+          id: session.user.id,
+          email: session.user.email,
+          role: isFirstUser ? "admin" : role || "customer",
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "id",
+        }
+      );
+
+      if (upsertError) {
+        console.error("Profile upsert error:", upsertError);
+        throw upsertError;
+      }
+    }
+
+    // Verify profile exists after creation/update
+    const { data: finalProfile, error: finalCheckError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", session.user.id)
+      .single();
+
+    if (finalCheckError || !finalProfile) {
+      console.error("Final profile check error:", finalCheckError);
+      throw new Error("Failed to verify profile creation");
+    }
+
+    // Successful auth - redirect to dashboard
+    return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
   } catch (error) {
     console.error("Auth callback error:", error);
+    // Redirect to login with error message
+    const errorMessage = encodeURIComponent(
+      (error as Error).message || "Authentication failed"
+    );
     return NextResponse.redirect(
-      new URL("/auth/login?error=Authentication%20failed", request.url)
+      new URL(`/auth/login?error=${errorMessage}`, request.url)
     );
   }
 }
