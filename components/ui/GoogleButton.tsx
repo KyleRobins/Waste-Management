@@ -5,11 +5,16 @@ import { Button } from "./button"; // Assuming you're using shadcn/ui
 import { supabase } from "@/lib/supabase/client";
 
 interface GoogleButtonProps {
-  role: string;
-  isFirstUser: boolean;
+  role?: string;
+  isFirstUser?: boolean;
+  mode?: "login" | "register";
 }
 
-export function GoogleButton({ role, isFirstUser }: GoogleButtonProps) {
+export function GoogleButton({
+  role,
+  isFirstUser,
+  mode = "register",
+}: GoogleButtonProps) {
   const router = useRouter();
 
   const handleGoogleSignIn = async () => {
@@ -18,10 +23,13 @@ export function GoogleButton({ role, isFirstUser }: GoogleButtonProps) {
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            role: role,
-            isFirstUser: isFirstUser.toString(),
-          },
+          queryParams:
+            mode === "register"
+              ? {
+                  role: role,
+                  isFirstUser: isFirstUser?.toString(),
+                }
+              : undefined,
         },
       });
 
@@ -56,7 +64,7 @@ export function GoogleButton({ role, isFirstUser }: GoogleButtonProps) {
           fill="#EA4335"
         />
       </svg>
-      Continue with Google
+      {mode === "login" ? "Sign in with Google" : "Continue with Google"}
     </Button>
   );
 }

@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Sidebar } from "@/components/sidebar";
 import { Toaster } from "@/components/ui/toaster";
+import AuthProvider from "@/providers/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -51,18 +52,20 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {isAuthPage ? (
-            // Render auth pages without sidebar
-            <main className="h-screen bg-background">{children}</main>
-          ) : (
-            // Render protected pages with sidebar
-            <div className="h-screen relative flex">
-              <Sidebar />
-              <main className="flex-1 overflow-y-auto bg-background">
-                <div className="container mx-auto p-8">{children}</div>
-              </main>
-            </div>
-          )}
+          <AuthProvider>
+            {isAuthPage ? (
+              // Render auth pages without sidebar
+              <main className="h-screen bg-background">{children}</main>
+            ) : (
+              // Render protected pages with sidebar
+              <div className="h-screen relative flex">
+                <Sidebar />
+                <main className="flex-1 overflow-y-auto bg-background">
+                  <div className="container mx-auto p-8">{children}</div>
+                </main>
+              </div>
+            )}
+          </AuthProvider>
           <Toaster />
         </ThemeProvider>
       </body>

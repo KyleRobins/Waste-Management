@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { LordIcon } from "@/components/ui/lord-icon";
-import { GoogleButton } from '@/components/ui/GoogleButton'
+import { GoogleButton } from "@/components/ui/GoogleButton";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -110,15 +110,15 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-8 space-y-6">
-          <GoogleButton />
+          <GoogleButton mode="login" />
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="bg-gray-50 px-2 text-gray-500">
-                Or continue with email
+              <span className="bg-card px-2 text-muted-foreground">
+                Or sign in with email
               </span>
             </div>
           </div>

@@ -18,6 +18,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Add this line to explicitly mark the route as dynamic
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const requestUrl = new URL(request.url);
@@ -36,8 +39,8 @@ export async function GET(request: Request) {
 
       if (sessionError) throw sessionError;
 
-      if (session?.user) {
-        // Update the user's role in your profiles table
+      if (session?.user && role) {
+        // Only update profile if this is a registration (role is present)
         const { error: updateError } = await supabase.from("profiles").upsert({
           id: session.user.id,
           role: isFirstUser ? "admin" : role || "customer",
