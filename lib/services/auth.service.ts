@@ -40,7 +40,7 @@ export const signUp = async (
           ...metadata,
           role: finalRole,
         },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/confirm?type=signup`,
       },
     });
 
@@ -71,18 +71,6 @@ export const signIn = async (email: string, password: string) => {
   try {
     const supabase = createClient();
 
-    // First, check if the user exists and get their profile
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("email", email)
-      .single();
-
-    if (profileError && profileError.code !== "PGRST116") {
-      // PGRST116 means no rows returned
-      throw profileError;
-    }
-
     // Attempt to sign in
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -91,21 +79,32 @@ export const signIn = async (email: string, password: string) => {
 
     if (error) throw error;
 
-    // Get user role from profile or metadata
-    const role = profile?.role || data.user?.user_metadata?.role || "customer";
+    // Get user role from profile
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .single();
 
-    // If profile doesn't exist, create it
-    if (!profile) {
-      const { error: insertError } = await supabase.from("profiles").insert({
-        id: data.user.id,
-        email: data.user.email,
-        role: role,
-      });
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+      // If profile doesn't exist, create it with default role
+      if (profileError.code === "PGRST116") {
+        const role = data.user?.user_metadata?.role || "customer";
+        const { error: insertError } = await supabase.from("profiles").insert({
+          id: data.user.id,
+          email: data.user.email,
+          role: role,
+        });
 
-      if (insertError) throw insertError;
+        if (insertError) throw insertError;
+        
+        return { data, error: null, role };
+      }
+      throw profileError;
     }
 
-    return { data, error: null, role };
+    return { data, error: null, role: profile?.role || "customer" };
   } catch (error) {
     console.error("Error in signIn:", error);
     return {

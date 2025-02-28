@@ -108,7 +108,7 @@ export default function RegisterPage() {
           message || "Please check your email to verify your account.",
       });
 
-      router.push("/auth/login");
+      router.push("/auth/login?message=Registration successful. Please check your email to verify your account.");
     } catch (err: any) {
       console.error("Registration error:", err);
       toast({

@@ -1,22 +1,6 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase environment variables");
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
 
 // Add this line to explicitly mark the route as dynamic
 export const dynamic = "force-dynamic";
@@ -50,12 +34,6 @@ export async function GET(request: Request) {
     if (!session?.user) {
       throw new Error("No user in session");
     }
-
-    // Verify the user's email domain if needed
-    // const emailDomain = session.user.email?.split('@')[1];
-    // if (emailDomain !== 'yourdomain.com') {
-    //   throw new Error('Invalid email domain');
-    // }
 
     try {
       // Check if profile exists
@@ -99,12 +77,6 @@ export async function GET(request: Request) {
         }
       }
 
-      // Set session cookie
-      await supabase.auth.setSession({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      });
-
       return NextResponse.redirect(new URL(next, requestUrl.origin));
     } catch (error) {
       console.error("Profile error:", error);
@@ -120,22 +92,3 @@ export async function GET(request: Request) {
     );
   }
 }
-
-const signIn = async (email: string, password: string) => {
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      console.error("Detailed error:", error);
-      throw error;
-    }
-
-    return data;
-  } catch (error) {
-    console.error("Sign in error:", error);
-    throw error;
-  }
-};

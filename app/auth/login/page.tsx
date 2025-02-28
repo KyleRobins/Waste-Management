@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { LordIcon } from "@/components/ui/lord-icon";
 import { GoogleButton } from "@/components/ui/GoogleButton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
