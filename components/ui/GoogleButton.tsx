@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Button } from "./button"; // Assuming you're using shadcn/ui
-import { supabase } from "@/lib/supabase/client";
+import { Button } from "./button";
 import { useToast } from "@/hooks/use-toast";
+import { handleOAuthSignIn } from "@/lib/auth-helpers";
 
 interface GoogleButtonProps {
   role?: string;
@@ -17,35 +17,14 @@ export function GoogleButton({ role, isFirstUser, mode }: GoogleButtonProps) {
 
   const handleGoogleSignIn = async () => {
     try {
-      const redirectURL = new URL("/auth/callback", window.location.origin);
-
-      // Add query parameters
-      const queryParams = new URLSearchParams();
-      queryParams.append("mode", mode);
-
-      if (mode === "register") {
-        if (role) queryParams.append("role", role);
-        if (isFirstUser !== undefined)
-          queryParams.append("isFirstUser", isFirstUser.toString());
-      }
-
-      redirectURL.search = queryParams.toString();
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: redirectURL.toString(),
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
-        },
+      const { error } = await handleOAuthSignIn("google", mode, {
+        role,
+        isFirstUser,
       });
 
       if (error) {
-        console.error("Google OAuth error:", error);
         toast({
-          title: "Error",
+          title: "Authentication Error",
           description: error.message,
           variant: "destructive",
         });

@@ -30,9 +30,10 @@ export async function GET(request: Request) {
     const role = requestUrl.searchParams.get("role");
     const isFirstUser = requestUrl.searchParams.get("isFirstUser") === "true";
     const mode = requestUrl.searchParams.get("mode");
+    const next = requestUrl.searchParams.get("next") || "/dashboard";
 
     if (!code) {
-      throw new Error("No code provided");
+      throw new Error("No authorization code provided");
     }
 
     // Exchange the code for a session
@@ -50,56 +51,67 @@ export async function GET(request: Request) {
       throw new Error("No user in session");
     }
 
-    // Check if profile exists
-    const { data: existingProfile, error: profileCheckError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .single();
+    // Verify the user's email domain if needed
+    // const emailDomain = session.user.email?.split('@')[1];
+    // if (emailDomain !== 'yourdomain.com') {
+    //   throw new Error('Invalid email domain');
+    // }
 
-    if (profileCheckError && profileCheckError.code !== "PGRST116") {
-      // PGRST116 is "not found" error
-      console.error("Profile check error:", profileCheckError);
-      throw profileCheckError;
-    }
+    try {
+      // Check if profile exists
+      const { data: existingProfile, error: profileCheckError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", session.user.id)
+        .single();
 
-    // Create or update profile if it doesn't exist or if in register mode
-    if (!existingProfile || mode === "register") {
-      const { error: upsertError } = await supabase.from("profiles").upsert(
-        {
-          id: session.user.id,
-          email: session.user.email,
-          role: isFirstUser ? "admin" : role || "customer",
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "id",
-        }
-      );
-
-      if (upsertError) {
-        console.error("Profile upsert error:", upsertError);
-        throw upsertError;
+      if (profileCheckError && profileCheckError.code !== "PGRST116") {
+        throw profileCheckError;
       }
+
+      // Create or update profile if it doesn't exist or if in register mode
+      if (!existingProfile || mode === "register") {
+        const { error: upsertError } = await supabase.from("profiles").upsert(
+          {
+            id: session.user.id,
+            email: session.user.email,
+            role: isFirstUser ? "admin" : role || "customer",
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "id",
+          }
+        );
+
+        if (upsertError) {
+          throw upsertError;
+        }
+
+        // Verify profile was created
+        const { data: finalProfile, error: finalCheckError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single();
+
+        if (finalCheckError || !finalProfile) {
+          throw new Error("Failed to verify profile creation");
+        }
+      }
+
+      // Set session cookie
+      await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      });
+
+      return NextResponse.redirect(new URL(next, requestUrl.origin));
+    } catch (error) {
+      console.error("Profile error:", error);
+      throw error;
     }
-
-    // Verify profile exists after creation/update
-    const { data: finalProfile, error: finalCheckError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .single();
-
-    if (finalCheckError || !finalProfile) {
-      console.error("Final profile check error:", finalCheckError);
-      throw new Error("Failed to verify profile creation");
-    }
-
-    // Successful auth - redirect to dashboard
-    return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
   } catch (error) {
     console.error("Auth callback error:", error);
-    // Redirect to login with error message
     const errorMessage = encodeURIComponent(
       (error as Error).message || "Authentication failed"
     );
