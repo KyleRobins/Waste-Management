@@ -21,6 +21,7 @@ import Link from "next/link";
 import { LordIcon } from "@/components/ui/lord-icon";
 import { GoogleButton } from "@/components/ui/GoogleButton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { createClient } from "@/lib/supabase/client";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -32,6 +33,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const supabase = createClient();
 
   useEffect(() => {
     // Show success message if email was verified
@@ -65,9 +67,27 @@ export default function LoginPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsLoading(true);
-      const { data, error, role } = await signIn(values.email, values.password);
+      
+      // Use Supabase auth directly for more reliable login
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
 
       if (error) throw error;
+
+      // Get user role from profile
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error("Error fetching profile:", profileError);
+      }
+
+      const role = profile?.role || data.user?.user_metadata?.role || "customer";
 
       // Role-based redirection
       const redirectMap = {
@@ -89,6 +109,16 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Demo login option
+  const handleDemoLogin = async () => {
+    form.setValue('email', 'robinsmutuma44@gmail.com');
+    form.setValue('password', 'Admin123!');
+    await onSubmit({
+      email: 'robinsmutuma44@gmail.com',
+      password: 'Admin123!'
+    });
   };
 
   return (
@@ -161,6 +191,14 @@ export default function LoginPage() {
               </Button>
             </form>
           </Form>
+          
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={handleDemoLogin}
+          >
+            Demo Login (Admin)
+          </Button>
         </div>
 
         <div className="space-y-2 text-center text-sm">

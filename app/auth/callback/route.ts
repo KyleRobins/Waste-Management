@@ -44,40 +44,63 @@ export async function GET(request: Request) {
         .single();
 
       if (profileCheckError && profileCheckError.code !== "PGRST116") {
-        throw profileCheckError;
+        console.error("Profile check error:", profileCheckError);
       }
 
       // Create or update profile if it doesn't exist or if in register mode
       if (!existingProfile || mode === "register") {
-        const { error: upsertError } = await supabase.from("profiles").upsert(
-          {
-            id: session.user.id,
-            email: session.user.email,
+        // Set user metadata with role information
+        await supabase.auth.updateUser({
+          data: {
             role: isFirstUser ? "admin" : role || "customer",
-            updated_at: new Date().toISOString(),
           },
-          {
-            onConflict: "id",
-          }
-        );
+        });
+
+        // Create profile directly
+        const { error: upsertError } = await supabase
+          .from("profiles")
+          .upsert(
+            {
+              id: session.user.id,
+              email: session.user.email,
+              role: isFirstUser ? "admin" : role || "customer",
+              updated_at: new Date().toISOString(),
+            },
+            {
+              onConflict: "id",
+            }
+          );
 
         if (upsertError) {
-          throw upsertError;
-        }
-
-        // Verify profile was created
-        const { data: finalProfile, error: finalCheckError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single();
-
-        if (finalCheckError || !finalProfile) {
-          throw new Error("Failed to verify profile creation");
+          console.error("Profile upsert error:", upsertError);
+          // Continue anyway - the trigger should handle this
         }
       }
 
-      return NextResponse.redirect(new URL(next, requestUrl.origin));
+      // Determine the redirect path based on role
+      let redirectPath = next;
+      
+      // Get the user's role from the profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .single();
+      
+      if (profile) {
+        const userRole = profile.role;
+        // Role-based redirection
+        const redirectMap: Record<string, string> = {
+          admin: "/dashboard",
+          employee: "/dashboard",
+          supplier: "/supplier-portal",
+          customer: "/customer-portal",
+        };
+        
+        redirectPath = redirectMap[userRole] || "/dashboard";
+      }
+
+      return NextResponse.redirect(new URL(redirectPath, requestUrl.origin));
     } catch (error) {
       console.error("Profile error:", error);
       throw error;

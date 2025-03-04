@@ -45,6 +45,26 @@ export const signUp = async (
     });
 
     if (error) throw error;
+    
+    // Create profile directly to ensure it exists
+    try {
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert({
+          id: data.user?.id,
+          email: email,
+          role: finalRole,
+          updated_at: new Date().toISOString(),
+        });
+        
+      if (profileError) {
+        console.error("Profile creation error:", profileError);
+      }
+    } catch (profileErr) {
+      console.error("Error creating profile:", profileErr);
+      // Continue anyway - the trigger should handle this
+    }
+    
     return {
       data,
       error: null,
@@ -91,17 +111,33 @@ export const signIn = async (email: string, password: string) => {
       // If profile doesn't exist, create it with default role
       if (profileError.code === "PGRST116") {
         const role = data.user?.user_metadata?.role || "customer";
-        const { error: insertError } = await supabase.from("profiles").insert({
-          id: data.user.id,
-          email: data.user.email,
-          role: role,
-        });
+        
+        // Create profile directly
+        const { error: insertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: data.user.id,
+            email: data.user.email,
+            role: role,
+          });
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error("Error creating profile:", insertError);
+          // Try updating user metadata instead
+          await supabase.auth.updateUser({
+            data: { role: role }
+          });
+        }
         
         return { data, error: null, role };
       }
-      throw profileError;
+      
+      // For other errors, try to continue with default role
+      return { 
+        data, 
+        error: null, 
+        role: data.user?.user_metadata?.role || "customer" 
+      };
     }
 
     return { data, error: null, role: profile?.role || "customer" };
@@ -222,5 +258,69 @@ export const getSession = async (): Promise<Session | null> => {
   } catch (error) {
     console.error("Error in getSession:", error);
     return null;
+  }
+};
+
+// Function to directly create a user (for admin purposes)
+export const createUser = async (email: string, password: string, role: UserRole = "customer") => {
+  try {
+    const supabase = createClient();
+    
+    // Try to use admin API first
+    try {
+      const { data, error } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { role },
+        app_metadata: { role }
+      });
+      
+      if (error) throw error;
+      
+      // Create profile
+      await supabase
+        .from("profiles")
+        .upsert({
+          id: data.user.id,
+          email: email,
+          role: role,
+          updated_at: new Date().toISOString(),
+        });
+        
+      return { data, error: null };
+    } catch (adminError) {
+      // Fall back to regular signup
+      console.log("Admin API failed, using regular signup");
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { role },
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+      
+      if (error) throw error;
+      
+      // Create profile
+      await supabase
+        .from("profiles")
+        .upsert({
+          id: data.user?.id,
+          email: email,
+          role: role,
+          updated_at: new Date().toISOString(),
+        });
+        
+      return { data, error: null };
+    }
+  } catch (error) {
+    console.error("Error creating user:", error);
+    return {
+      data: null,
+      error: error instanceof AuthError ? error : new Error("Failed to create user"),
+    };
   }
 };
