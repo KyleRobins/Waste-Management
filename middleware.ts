@@ -23,6 +23,7 @@ export async function middleware(req: NextRequest) {
       req.nextUrl.pathname.startsWith("/_next") ||
       req.nextUrl.pathname.startsWith("/api/") ||
       req.nextUrl.pathname.startsWith("/auth/callback") ||
+      req.nextUrl.pathname.startsWith("/auth/confirm-email") ||
       req.nextUrl.pathname === "/favicon.ico"
     ) {
       return res;

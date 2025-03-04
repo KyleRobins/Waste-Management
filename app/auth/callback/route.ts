@@ -15,7 +15,31 @@ export async function GET(request: Request) {
     const isFirstUser = requestUrl.searchParams.get("isFirstUser") === "true";
     const mode = requestUrl.searchParams.get("mode");
     const next = requestUrl.searchParams.get("next") || "/dashboard";
+    const type = requestUrl.searchParams.get("type");
 
+    // Handle email confirmation
+    if (type === "email_confirmation") {
+      const token = requestUrl.searchParams.get("token");
+      if (!token) {
+        throw new Error("No confirmation token provided");
+      }
+
+      const { error } = await supabase.auth.verifyOtp({
+        token_hash: token,
+        type: "email",
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Redirect to the confirm-email page
+      return NextResponse.redirect(
+        new URL("/auth/confirm-email", requestUrl.origin)
+      );
+    }
+
+    // Handle OAuth callback
     if (!code) {
       throw new Error("No authorization code provided");
     }
@@ -44,63 +68,46 @@ export async function GET(request: Request) {
         .single();
 
       if (profileCheckError && profileCheckError.code !== "PGRST116") {
-        console.error("Profile check error:", profileCheckError);
+        throw profileCheckError;
       }
 
       // Create or update profile if it doesn't exist or if in register mode
       if (!existingProfile || mode === "register") {
-        // Set user metadata with role information
-        await supabase.auth.updateUser({
-          data: {
+        const { error: upsertError } = await supabase.from("profiles").upsert(
+          {
+            id: session.user.id,
+            email: session.user.email,
             role: isFirstUser ? "admin" : role || "customer",
+            updated_at: new Date().toISOString(),
           },
-        });
-
-        // Create profile directly
-        const { error: upsertError } = await supabase
-          .from("profiles")
-          .upsert(
-            {
-              id: session.user.id,
-              email: session.user.email,
-              role: isFirstUser ? "admin" : role || "customer",
-              updated_at: new Date().toISOString(),
-            },
-            {
-              onConflict: "id",
-            }
-          );
+          {
+            onConflict: "id",
+          }
+        );
 
         if (upsertError) {
-          console.error("Profile upsert error:", upsertError);
-          // Continue anyway - the trigger should handle this
+          throw upsertError;
+        }
+
+        // Verify profile was created
+        const { data: finalProfile, error: finalCheckError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single();
+
+        if (finalCheckError || !finalProfile) {
+          throw new Error("Failed to verify profile creation");
         }
       }
 
-      // Determine the redirect path based on role
-      let redirectPath = next;
-      
-      // Get the user's role from the profile
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .single();
-      
-      if (profile) {
-        const userRole = profile.role;
-        // Role-based redirection
-        const redirectMap: Record<string, string> = {
-          admin: "/dashboard",
-          employee: "/dashboard",
-          supplier: "/supplier-portal",
-          customer: "/customer-portal",
-        };
-        
-        redirectPath = redirectMap[userRole] || "/dashboard";
-      }
+      // Set session cookie
+      await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      });
 
-      return NextResponse.redirect(new URL(redirectPath, requestUrl.origin));
+      return NextResponse.redirect(new URL(next, requestUrl.origin));
     } catch (error) {
       console.error("Profile error:", error);
       throw error;
