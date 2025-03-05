@@ -26,21 +26,28 @@ export default function ConfirmEmailPage() {
   useEffect(() => {
     const confirmEmail = async () => {
       try {
+        // Get all search params
+        const params = Object.fromEntries(searchParams.entries());
+        console.log("Confirmation params:", params);
+
+        // Check if we have a token in the URL
         const token = searchParams.get("token");
         const type = searchParams.get("type");
 
-        if (!token || type !== "email_confirmation") {
+        if (!token) {
           setStatus("error");
-          setMessage("Invalid confirmation link");
+          setMessage("No confirmation token found in the URL");
           return;
         }
 
+        // Verify the email
         const { error } = await supabase.auth.verifyOtp({
           token_hash: token,
           type: "email",
         });
 
         if (error) {
+          console.error("Verification error:", error);
           throw error;
         }
 
@@ -55,7 +62,9 @@ export default function ConfirmEmailPage() {
         console.error("Email confirmation error:", error);
         setStatus("error");
         setMessage(
-          "Failed to confirm email. Please try again or contact support."
+          error instanceof Error
+            ? error.message
+            : "Failed to confirm email. Please try again or contact support."
         );
       }
     };
