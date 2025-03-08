@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "@/providers/theme-provider";
 import { Sidebar } from "@/components/sidebar";
 import { Toaster } from "@/components/ui/toaster";
-import AuthProvider from "@/providers/AuthProvider";
+import Auth0Provider from "@/providers/Auth0Provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Waste Management System",
-  description: "Efficient waste management solution",
+  description: "A modern waste management solution",
   icons: {
     icon: [
       {
@@ -46,13 +46,13 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-icon.png" />
       </head>
       <body className={`${inter.className} font-sans`} suppressHydrationWarning>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AuthProvider>
+        <Auth0Provider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
             {isAuthPage ? (
               // Render auth pages without sidebar
               <main className="h-screen bg-background">{children}</main>
@@ -65,19 +65,15 @@ export default function RootLayout({
                 </main>
               </div>
             )}
-          </AuthProvider>
-          <Toaster />
-        </ThemeProvider>
+            <Toaster />
+          </ThemeProvider>
+        </Auth0Provider>
       </body>
     </html>
   );
 }
 
-export function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-md">{children}</div>
