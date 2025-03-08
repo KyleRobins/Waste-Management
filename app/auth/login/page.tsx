@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,6 +27,14 @@ const formSchema = z.object({
 });
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
@@ -65,7 +73,7 @@ export default function LoginPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsLoading(true);
-      
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: values.email,
         password: values.password,
@@ -80,11 +88,12 @@ export default function LoginPage() {
         .eq("id", data.user.id)
         .single();
 
-      if (profileError && profileError.code !== 'PGRST116') {
+      if (profileError && profileError.code !== "PGRST116") {
         console.error("Error fetching profile:", profileError);
       }
 
-      const role = profile?.role || data.user?.user_metadata?.role || "customer";
+      const role =
+        profile?.role || data.user?.user_metadata?.role || "customer";
 
       // Role-based redirection
       const redirectMap = {

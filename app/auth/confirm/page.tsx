@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { verifyEmail } from "@/lib/auth-helpers";
@@ -8,7 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LordIcon } from "@/components/ui/lord-icon";
 
-export default function ConfirmEmail() {
+export default function ConfirmPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ConfirmContent />
+    </Suspense>
+  );
+}
+
+function ConfirmContent() {
   const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
