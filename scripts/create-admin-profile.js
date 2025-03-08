@@ -1,162 +1,121 @@
 // This script creates a profile for the admin user directly using SQL
-require("dotenv").config();
-const { createClient } = require("@supabase/supabase-js");
-
-// Use service role key for admin operations
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const adminEmail = process.env.ADMIN_EMAIL;
-const adminPassword = process.env.ADMIN_PASSWORD;
-const adminFullName = process.env.ADMIN_FULL_NAME || "System Administrator";
-const adminPhone = process.env.ADMIN_PHONE || "";
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
 // Validate environment variables
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error("Missing Supabase environment variables");
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  console.error('Error: Missing Supabase environment variables');
+  console.error('Please ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set in your .env file');
   process.exit(1);
 }
 
-if (!adminEmail || !adminPassword) {
-  console.error("Missing admin credentials in environment variables");
-  console.error("Please ensure ADMIN_EMAIL and ADMIN_PASSWORD are set");
-  process.exit(1);
-}
+// Create Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
-console.log("Using admin email:", adminEmail);
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+// Admin user email
+const ADMIN_EMAIL = 'robinsmutuma44@gmail.com';
 
 async function createAdminProfile() {
   try {
-    console.log("Starting admin profile creation process...");
-
-    // First, check and delete existing user if necessary
-    console.log("Checking for existing user...");
-    const { data: existingUsers, error: listError } =
-      await supabase.auth.admin.listUsers();
-
-    if (listError) {
-      console.error("Error listing users:", listError);
-      throw listError;
-    }
-
-    const existingUser = existingUsers?.users?.find(
-      (u) => u.email === adminEmail
-    );
-
-    if (existingUser) {
-      console.log("Found existing user, deleting...");
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(
-        existingUser.id
-      );
-      if (deleteError) {
-        console.error("Error deleting existing user:", deleteError);
-        throw deleteError;
-      }
-      console.log("Existing user deleted successfully");
-    }
-
-    // Wait a moment to ensure deletion is processed
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Create new user
-    console.log("Creating new admin user...");
-    const { data: authData, error: createError } =
-      await supabase.auth.admin.createUser({
-        email: adminEmail,
-        password: adminPassword,
-        email_confirm: true,
-        user_metadata: {
-          full_name: adminFullName,
-          phone: adminPhone,
-        },
-        role: "admin",
+    console.log('Looking up admin user...');
+    
+    // First get the user ID from auth
+    const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers();
+    
+    if (getUserError) {
+      console.error('Error listing users:', getUserError);
+      
+      // Try alternative approach - get session for the admin
+      console.log('Trying to sign in as admin to get user ID...');
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: ADMIN_EMAIL,
+        password: 'Admin123!'
       });
-
-    if (createError) {
-      console.error("Error creating user:", createError);
-      throw createError;
+      
+      if (signInError) {
+        console.error('Error signing in:', signInError);
+        throw new Error('Could not get admin user ID');
+      }
+      
+      const userId = signInData.user.id;
+      
+      // Create profile using direct SQL
+      console.log('Creating admin profile using SQL function...');
+      const { error: fnError } = await supabase.rpc('insert_admin_profile', {
+        user_id: userId,
+        user_email: ADMIN_EMAIL
+      });
+      
+      if (fnError) {
+        console.error('Error creating profile with function:', fnError);
+        
+        // Try direct insert as fallback
+        console.log('Trying direct insert...');
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email: ADMIN_EMAIL,
+            role: 'admin',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          
+        if (insertError) {
+          console.error('Error with direct insert:', insertError);
+          throw new Error('Failed to create admin profile');
+        }
+      }
+      
+      console.log('Admin profile created successfully!');
+      return;
     }
-
-    if (!authData.user) {
-      throw new Error("No user data returned from creation");
+    
+    // Find the admin user
+    const adminUser = users.find(user => user.email === ADMIN_EMAIL);
+    
+    if (!adminUser) {
+      console.error('Admin user not found in auth system');
+      throw new Error('Admin user not found');
     }
-
-    const userId = authData.user.id;
-    console.log("User created successfully with ID:", userId);
-
-    // Delete existing profile if exists
-    console.log("Cleaning up existing profile...");
-    const { error: deleteProfileError } = await supabase
-      .from("profiles")
-      .delete()
-      .eq("email", adminEmail);
-
-    if (deleteProfileError) {
-      console.log(
-        "Note: No existing profile found or error deleting:",
-        deleteProfileError
-      );
-    }
-
-    // Create new profile
-    console.log("Creating admin profile...");
-    const now = new Date().toISOString();
-    const { error: insertError } = await supabase.from("profiles").insert({
-      id: userId,
-      email: adminEmail,
-      role: "admin",
-      full_name: adminFullName,
-      phone: adminPhone,
-      created_at: now,
-      updated_at: now,
+    
+    console.log('Found admin user with ID:', adminUser.id);
+    
+    // Create profile using direct SQL
+    console.log('Creating admin profile using SQL function...');
+    const { error: fnError } = await supabase.rpc('insert_admin_profile', {
+      user_id: adminUser.id,
+      user_email: ADMIN_EMAIL
     });
-
-    if (insertError) {
-      console.error("Error creating profile:", insertError);
-      throw insertError;
+    
+    if (fnError) {
+      console.error('Error creating profile with function:', fnError);
+      
+      // Try direct insert as fallback
+      console.log('Trying direct insert...');
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: adminUser.id,
+          email: ADMIN_EMAIL,
+          role: 'admin',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        
+      if (insertError) {
+        console.error('Error with direct insert:', insertError);
+        throw new Error('Failed to create admin profile');
+      }
     }
-
-    console.log(`
-    Admin user created successfully!
     
-    NEXT STEPS:
-    1. Go to Supabase Dashboard > Authentication > Users
-    2. Verify the admin user exists
-    3. Try logging in at your application with:
-       Email: ${adminEmail}
-       Password: ${adminPassword}
+    console.log('Admin profile created successfully!');
     
-    If you cannot log in:
-    1. Go to Authentication > Users
-    2. Find your admin user
-    3. Click "Reset Password"
-    4. Use the reset password link to set a new password
-    
-    Make sure these settings are correct in Supabase:
-    1. Authentication > Providers:
-       - Email auth is enabled
-       - "Confirm email" is set to "Optional"
-    
-    2. Database > Policies (for profiles table):
-       - RLS is enabled
-       - Policies allow proper access
-    
-    3. SQL to fix permissions if needed:
-       ALTER USER authenticated WITH SUPERUSER;
-       GRANT USAGE ON SCHEMA public TO authenticated;
-       GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
-    `);
-
-    process.exit(0);
   } catch (error) {
-    console.error("Error in admin profile creation:", error);
-    process.exit(1);
+    console.error('Error creating admin profile:', error);
   }
 }
 

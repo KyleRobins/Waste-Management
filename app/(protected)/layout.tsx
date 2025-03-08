@@ -1,55 +1,30 @@
-"use client";
-
+import { headers } from "next/headers";
+import { createServerClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
-import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useRouter } from "next/navigation";
 
-export default function ProtectedLayout({
+export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
-  const supabase = createClientComponentClient();
+  const headersList = headers();
+  const supabase = createServerClient();
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-        if (!session) {
-          router.push("/auth/login");
-        }
-      } catch (error) {
-        console.error("Auth check error:", error);
-        router.push("/auth/login");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, [router, supabase]);
-
-  if (isLoading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
-          <p className="text-sm text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+  if (!session) {
+    redirect("/auth/login");
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="h-screen relative flex">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-8">{children}</main>
+      <main className="flex-1 overflow-y-auto bg-background">
+        <div className="container mx-auto p-8">{children}</div>
+      </main>
     </div>
   );
 }
