@@ -22,7 +22,6 @@ function ConfirmContent() {
     const verifyEmail = async () => {
       try {
         const token_hash = searchParams.get("token_hash");
-        const type = searchParams.get("type") || "signup";
 
         if (!token_hash) {
           setStatus("error");
@@ -30,9 +29,10 @@ function ConfirmContent() {
           return;
         }
 
+        // Always use 'email' as the type for email verification
         const { error } = await supabase.auth.verifyOtp({
           token_hash,
-          type: type as any,
+          type: "email",
         });
 
         if (error) {
@@ -40,45 +40,31 @@ function ConfirmContent() {
           setStatus("error");
           setMessage(error.message);
           toast.error("Failed to verify email");
+
+          // Redirect to login after error
+          setTimeout(() => {
+            router.push("/auth/login");
+          }, 3000);
         } else {
           setStatus("success");
-          setMessage("Email verified successfully!");
+          setMessage("Email verified successfully! Redirecting to login...");
           toast.success("Email verified successfully!");
 
-          // Get the user's role
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-          if (user) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("role")
-              .eq("id", user.id)
-              .single();
-
-            // Role-based redirection
-            const redirectMap: { [key: string]: string } = {
-              admin: "/dashboard",
-              customer: "/customer-portal",
-              supplier: "/supplier-portal",
-              employee: "/employee-portal",
-            };
-
-            const redirectPath = profile?.role
-              ? redirectMap[profile.role]
-              : "/dashboard";
-
-            // Delay redirect to show success message
-            setTimeout(() => {
-              router.push(redirectPath);
-            }, 2000);
-          }
+          // Always redirect to login after successful verification
+          setTimeout(() => {
+            router.push("/auth/login");
+          }, 2000);
         }
       } catch (error) {
         console.error("Verification error:", error);
         setStatus("error");
         setMessage("An unexpected error occurred");
         toast.error("Verification failed");
+
+        // Redirect to login after error
+        setTimeout(() => {
+          router.push("/auth/login");
+        }, 3000);
       }
     };
 
