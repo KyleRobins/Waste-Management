@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 export async function signUp(email: string, password: string) {
   const cookieStore = cookies();
@@ -52,4 +53,12 @@ export async function signIn(email: string, password: string) {
     console.error("Error during sign in:", error);
     return { error: "Invalid login credentials" };
   }
+}
+
+export async function signOut() {
+  const cookieStore = cookies();
+  const supabase = createClient(cookieStore);
+  
+  await supabase.auth.signOut();
+  redirect('/login');
 }
