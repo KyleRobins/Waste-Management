@@ -93,18 +93,36 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: values.email,
-        password: values.password,
-        options: {
-          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
-          data: {
-            role: isFirstUser ? "admin" : values.role,
+      // First sign up the user in auth
+      const { data: authData, error: signUpError } = await supabase.auth.signUp(
+        {
+          email: values.email,
+          password: values.password,
+          options: {
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
+            data: {
+              role: isFirstUser ? "admin" : values.role,
+            },
           },
-        },
-      });
+        }
+      );
 
-      if (error) throw error;
+      if (signUpError) throw signUpError;
+
+      // If signup successful, create the profile
+      if (authData.user) {
+        const { error: profileError } = await supabase.from("profiles").insert({
+          id: authData.user.id,
+          email: values.email,
+          role: isFirstUser ? "admin" : values.role,
+          created_at: new Date().toISOString(),
+        });
+
+        if (profileError) {
+          console.error("Error creating profile:", profileError);
+          throw new Error("Failed to create user profile");
+        }
+      }
 
       // Redirect to verify-email page after successful registration
       router.push("/auth/verify-email");
