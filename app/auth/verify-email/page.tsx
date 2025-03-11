@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { Loader2 } from "lucide-react";
@@ -9,16 +9,24 @@ import { toast } from "sonner";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
+    // Get the email from local storage or session
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        setEmail(session.user.email);
+      }
+    };
+    getSession();
+
     // Listen for auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN") {
-        toast.success("Email verified successfully!");
-        router.push("/dashboard");
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        toast.success('Email verified successfully!');
+        router.push('/dashboard');
       }
     });
 
@@ -33,13 +41,13 @@ export default function VerifyEmailPage() {
         <div className="text-center space-y-2">
           <Loader2 className="animate-spin h-8 w-8 mx-auto text-primary" />
           <h1 className="text-2xl font-semibold">Check your email</h1>
-          <p className="text-muted-foreground">
-            We sent you a verification link. Please check your email and click
-            the link to verify your account.
-          </p>
+          {email && (
+            <p className="text-muted-foreground">
+              We sent a verification link to <span className="font-medium">{email}</span>
+            </p>
+          )}
           <p className="text-sm text-muted-foreground mt-4">
-            Once verified, you will be automatically redirected to the
-            dashboard.
+            Click the link in your email to verify your account. If you don't see it, check your spam folder.
           </p>
         </div>
       </Card>

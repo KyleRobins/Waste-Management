@@ -93,22 +93,26 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const { data, error, role, message } = await signUp(
-        values.email,
-        values.password,
-        values.role,
-        {}
-      );
+      const { data, error } = await supabase.auth.signUp({
+        email: values.email,
+        password: values.password,
+        options: {
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
+          data: {
+            role: isFirstUser ? "admin" : values.role,
+          },
+        },
+      });
 
       if (error) throw error;
 
+      // Redirect to verify-email page after successful registration
+      router.push("/auth/verify-email");
       toast({
-        title: "Success",
+        title: "Check your email",
         description:
-          message || "Please check your email to verify your account.",
+          "We've sent you a verification link to complete your registration.",
       });
-
-      router.push("/auth/login?message=Registration successful. Please check your email to verify your account.");
     } catch (err: any) {
       console.error("Registration error:", err);
       toast({
@@ -183,7 +187,7 @@ export default function RegisterPage() {
                 )}
               />
 
-              <GoogleButton 
+              <GoogleButton
                 mode="register"
                 role={selectedRole}
                 isFirstUser={isFirstUser}

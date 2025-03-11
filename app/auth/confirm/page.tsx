@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Card } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from 'next/navigation';
 
@@ -12,35 +12,44 @@ import { useRouter } from 'next/navigation';
 function ConfirmContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [verifying, setVerifying] = useState(true)
+  const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying')
+  const [message, setMessage] = useState('Verifying your email...')
   const supabase = createClient()
 
   useEffect(() => {
-    const token_hash = searchParams.get('token_hash')
-    const type = searchParams.get('type')
-    
-    async function verifyEmail() {
-      if (token_hash && type) {
-        try {
-          const { error } = await supabase.auth.verifyOtp({ token_hash, type })
-          if (error) {
-            toast.error('Error verifying your email. Please try again.')
-            router.push('/auth/login')
-          } else {
-            setVerifying(false)
-            toast.success('Email verified successfully!')
-            // Short delay before redirect to ensure toast is seen
-            setTimeout(() => {
-              router.push('/dashboard')
-            }, 2000)
-          }
-        } catch (error) {
-          toast.error('An unexpected error occurred')
-          router.push('/auth/login')
+    const verifyEmail = async () => {
+      try {
+        const token_hash = searchParams.get('token_hash')
+        const type = searchParams.get('type')
+        
+        if (!token_hash || !type) {
+          setStatus('error')
+          setMessage('Invalid verification link')
+          return
         }
-      } else {
-        toast.error('Invalid verification link')
-        router.push('/auth/login')
+
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash,
+          type,
+        })
+
+        if (error) {
+          setStatus('error')
+          setMessage(error.message)
+          toast.error('Failed to verify email')
+        } else {
+          setStatus('success')
+          setMessage('Email verified successfully!')
+          toast.success('Email verified successfully!')
+          // Delay redirect to show success message
+          setTimeout(() => {
+            router.push('/dashboard')
+          }, 2000)
+        }
+      } catch (error) {
+        setStatus('error')
+        setMessage('An unexpected error occurred')
+        toast.error('Verification failed')
       }
     }
 
@@ -50,20 +59,26 @@ function ConfirmContent() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md p-6">
-        <div className="text-center space-y-2">
-          {verifying ? (
+        <div className="text-center space-y-4">
+          {status === 'verifying' && (
             <>
-              <Loader2 className="animate-spin h-8 w-8 mx-auto text-primary" />
+              <Loader2 className="animate-spin h-12 w-12 mx-auto text-primary" />
               <h1 className="text-2xl font-semibold">Verifying your email</h1>
-              <p className="text-muted-foreground">Please wait while we verify your email address...</p>
-            </>
-          ) : (
-            <>
-              <div className="h-8 w-8 mx-auto text-green-500">✓</div>
-              <h1 className="text-2xl font-semibold">Email Verified!</h1>
-              <p className="text-muted-foreground">Redirecting you to the dashboard...</p>
             </>
           )}
+          {status === 'success' && (
+            <>
+              <CheckCircle2 className="h-12 w-12 mx-auto text-green-500" />
+              <h1 className="text-2xl font-semibold text-green-500">Success!</h1>
+            </>
+          )}
+          {status === 'error' && (
+            <>
+              <XCircle className="h-12 w-12 mx-auto text-red-500" />
+              <h1 className="text-2xl font-semibold text-red-500">Verification Failed</h1>
+            </>
+          )}
+          <p className="text-muted-foreground">{message}</p>
         </div>
       </Card>
     </div>
