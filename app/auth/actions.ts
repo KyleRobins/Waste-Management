@@ -11,13 +11,13 @@ export async function signUp(email: string, password: string) {
       email,
       password,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
       },
     });
 
     if (authError) throw authError;
 
-    return { success: true };
+    return { success: true, redirect: '/auth/verify-email' };
   } catch (error) {
     console.error("Error during sign up:", error);
     return { error: "Error during sign up" };

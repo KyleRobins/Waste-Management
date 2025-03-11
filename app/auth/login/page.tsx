@@ -20,6 +20,7 @@ import Link from "next/link";
 import { LordIcon } from "@/components/ui/lord-icon";
 import { GoogleButton } from "@/components/ui/GoogleButton";
 import { createClient } from "@/lib/supabase/client";
+import { signUp } from "@/app/auth/client-actions";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -27,6 +28,23 @@ const formSchema = z.object({
 });
 
 export default function LoginPage() {
+  const handleSignUp = async (formData: FormData) => {
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    const { success, error, redirect } = await signUp(email, password);
+
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
+    if (success && redirect) {
+      toast.success("Please check your email to verify your account");
+      router.push(redirect);
+    }
+  };
+
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <LoginContent />
