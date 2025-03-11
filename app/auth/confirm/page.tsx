@@ -1,11 +1,11 @@
 "use client";
 
 import { useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { redirect } from 'next/navigation'
 
-export default function ConfirmPage() {
+// Separate component that uses useSearchParams
+function ConfirmContent() {
   const searchParams = useSearchParams()
   const [message, setMessage] = useState('Verifying your email...')
   const supabase = createClient()
@@ -35,5 +35,18 @@ export default function ConfirmPage() {
     <div className="flex min-h-screen flex-col items-center justify-center">
       <p className="text-center">{message}</p>
     </div>
+  )
+}
+
+// Main page component with Suspense
+export default function ConfirmPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col items-center justify-center">
+        <p className="text-center">Loading...</p>
+      </div>
+    }>
+      <ConfirmContent />
+    </Suspense>
   )
 }
