@@ -106,7 +106,7 @@ export default function RegisterPage() {
           email: values.email,
           password: values.password,
           options: {
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm?type=email`,
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
             data: {
               role: finalRole,
             },

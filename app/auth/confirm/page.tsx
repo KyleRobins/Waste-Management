@@ -39,12 +39,10 @@ function ConfirmContent() {
           return;
         }
 
-        // First verify the OTP
-        console.log("Attempting to verify OTP...");
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash,
-          type: type === "email" ? "email" : "signup",
-        });
+        // Exchange the code for a session
+        console.log("Attempting to exchange code for session...");
+        const { data, error: verifyError } =
+          await supabase.auth.exchangeCodeForSession(token_hash);
 
         if (verifyError) {
           console.error("Verification error:", verifyError);
@@ -62,34 +60,15 @@ function ConfirmContent() {
           return;
         }
 
-        // Get the session to ensure we're properly authenticated
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession();
-
-        if (sessionError) {
-          console.error("Session error:", sessionError);
-          setStatus("error");
-          setMessage("Failed to get user session");
-          toast.error("Verification error");
-          return;
-        }
+        // No need to get session separately as exchangeCodeForSession already provides it
+        const session = data.session;
 
         if (!session) {
-          // If no session, try to sign in with the OTP
-          const { error: signInError } = await supabase.auth.verifyOtp({
-            token_hash,
-            type: "email",
-          });
-
-          if (signInError) {
-            console.error("Sign in error:", signInError);
-            setStatus("error");
-            setMessage("Failed to sign in after verification");
-            toast.error("Verification error");
-            return;
-          }
+          console.error("No session returned from verification");
+          setStatus("error");
+          setMessage("Failed to create user session");
+          toast.error("Verification error");
+          return;
         }
 
         // Fetch the user's profile
