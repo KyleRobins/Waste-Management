@@ -39,10 +39,12 @@ function ConfirmContent() {
           return;
         }
 
-        // Exchange the code for a session
-        console.log("Attempting to exchange code for session...");
-        const { data, error: verifyError } =
-          await supabase.auth.exchangeCodeForSession(token_hash);
+        // Verify the email
+        console.log("Attempting to verify email...");
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash,
+          type: "email",
+        });
 
         if (verifyError) {
           console.error("Verification error:", verifyError);
@@ -60,18 +62,21 @@ function ConfirmContent() {
           return;
         }
 
-        // No need to get session separately as exchangeCodeForSession already provides it
-        const session = data.session;
+        // Get the session
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-        if (!session) {
-          console.error("No session returned from verification");
+        if (sessionError || !session) {
+          console.error("Session error:", sessionError);
           setStatus("error");
           setMessage("Failed to create user session");
           toast.error("Verification error");
           return;
         }
 
-        // Fetch the user's profile
+        // Fetch or create the user's profile
         console.log("Fetching user profile...");
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
@@ -81,14 +86,17 @@ function ConfirmContent() {
 
         if (profileError) {
           console.error("Error fetching profile:", profileError);
-          // If profile doesn't exist, try to create it
+          // If profile doesn't exist, create it
           if (data.user && data.user.email) {
+            const userRole = data.user.user_metadata?.role || "customer";
             const { error: insertError } = await supabase
               .from("profiles")
               .insert({
                 id: data.user.id,
                 email: data.user.email,
-                role: data.user.user_metadata?.role || "customer",
+                role: userRole,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
               });
 
             if (insertError) {
