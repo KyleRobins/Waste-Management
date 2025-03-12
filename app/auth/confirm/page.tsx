@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { EmailOtpType } from "@supabase/supabase-js";
 
 // Separate component that uses useSearchParams
 function ConfirmContent() {
@@ -38,35 +39,18 @@ function ConfirmContent() {
           return;
         }
 
-        // First, check if we can access the auth user
-        const {
-          data: { user: currentUser },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError) {
-          console.error("Error getting user:", userError);
-        } else {
-          console.log("Current user state:", currentUser);
-        }
-
+        // First verify the OTP
         console.log("Attempting to verify OTP...");
-        const { data, error } = await supabase.auth.verifyOtp({
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
           token_hash,
-          type: "email",
+          type: type === "email" ? "email" : "signup",
         });
 
-        console.log("Verification response:", { data, error });
-
-        if (error) {
-          console.error("Verification error:", error);
+        if (verifyError) {
+          console.error("Verification error:", verifyError);
           setStatus("error");
-          setMessage(error.message);
+          setMessage(verifyError.message);
           toast.error("Failed to verify email");
-
-          setTimeout(() => {
-            router.push("/auth/login");
-          }, 3000);
           return;
         }
 
@@ -75,13 +59,40 @@ function ConfirmContent() {
           setStatus("error");
           setMessage("Verification failed: No user data found");
           toast.error("Verification failed");
-
-          setTimeout(() => {
-            router.push("/auth/login");
-          }, 3000);
           return;
         }
 
+        // Get the session to ensure we're properly authenticated
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error("Session error:", sessionError);
+          setStatus("error");
+          setMessage("Failed to get user session");
+          toast.error("Verification error");
+          return;
+        }
+
+        if (!session) {
+          // If no session, try to sign in with the OTP
+          const { error: signInError } = await supabase.auth.verifyOtp({
+            token_hash,
+            type: "email",
+          });
+
+          if (signInError) {
+            console.error("Sign in error:", signInError);
+            setStatus("error");
+            setMessage("Failed to sign in after verification");
+            toast.error("Verification error");
+            return;
+          }
+        }
+
+        // Fetch the user's profile
         console.log("Fetching user profile...");
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
@@ -91,39 +102,50 @@ function ConfirmContent() {
 
         if (profileError) {
           console.error("Error fetching profile:", profileError);
-          // Continue with default role handling
-        } else {
-          console.log("User profile:", profile);
+          // If profile doesn't exist, try to create it
+          if (data.user && data.user.email) {
+            const { error: insertError } = await supabase
+              .from("profiles")
+              .insert({
+                id: data.user.id,
+                email: data.user.email,
+                role: data.user.user_metadata?.role || "customer",
+              });
+
+            if (insertError) {
+              console.error("Error creating profile:", insertError);
+              setStatus("error");
+              setMessage("Failed to create user profile");
+              toast.error("Profile creation failed");
+              return;
+            }
+          }
         }
 
         setStatus("success");
         setMessage("Email verified successfully! Redirecting...");
         toast.success("Email verified successfully!");
 
-        // Redirect based on role or to default path
+        // Redirect based on role
         setTimeout(() => {
-          const role = profile?.role || "customer";
+          const role =
+            profile?.role || data.user?.user_metadata?.role || "customer";
           console.log("Redirecting user with role:", role);
 
-          if (role === "admin") {
-            router.push("/dashboard");
-          } else if (role === "supplier") {
-            router.push("/supplier-portal");
-          } else if (role === "employee") {
-            router.push("/employee-portal");
-          } else {
-            router.push("/customer-portal");
-          }
+          const redirectMap: Record<string, string> = {
+            admin: "/dashboard",
+            supplier: "/supplier-portal",
+            employee: "/employee-portal",
+            customer: "/customer-portal",
+          };
+
+          router.push(redirectMap[role] || "/customer-portal");
         }, 2000);
       } catch (error) {
         console.error("Unexpected error during verification:", error);
         setStatus("error");
         setMessage("An unexpected error occurred during verification.");
         toast.error("Verification failed");
-
-        setTimeout(() => {
-          router.push("/auth/login");
-        }, 3000);
       }
     };
 

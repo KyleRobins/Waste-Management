@@ -100,13 +100,13 @@ export default function RegisterPage() {
 
       const finalRole = count === 0 ? "admin" : values.role;
 
-      // Single signup call with proper metadata
+      // Sign up with proper metadata
       const { data: authData, error: signUpError } = await supabase.auth.signUp(
         {
           email: values.email,
           password: values.password,
           options: {
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm?type=email`,
             data: {
               role: finalRole,
             },
@@ -116,7 +116,23 @@ export default function RegisterPage() {
 
       if (signUpError) throw signUpError;
 
-      // Redirect to verify-email page after successful registration
+      // Create profile directly to ensure it exists
+      if (authData.user) {
+        const { error: profileError } = await supabase.from("profiles").insert({
+          id: authData.user.id,
+          email: values.email,
+          role: finalRole,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        if (profileError) {
+          console.error("Profile creation error:", profileError);
+          // The trigger should handle this, so we can continue
+        }
+      }
+
+      // Redirect to verify-email page
       router.push("/auth/verify-email");
       toast({
         title: "Check your email",
