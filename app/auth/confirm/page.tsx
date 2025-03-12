@@ -25,14 +25,32 @@ function ConfirmContent() {
         const type = searchParams.get("type");
         const next = searchParams.get("next") ?? "/auth/login";
 
-        console.log("Verification params:", { token_hash, type, next });
+        console.log("Starting verification process with params:", {
+          token_hash,
+          type,
+          next,
+        });
 
         if (!token_hash) {
+          console.error("No token_hash found in URL");
           setStatus("error");
           setMessage("Invalid verification link. No token hash found.");
           return;
         }
 
+        // First, check if we can access the auth user
+        const {
+          data: { user: currentUser },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError) {
+          console.error("Error getting user:", userError);
+        } else {
+          console.log("Current user state:", currentUser);
+        }
+
+        console.log("Attempting to verify OTP...");
         const { data, error } = await supabase.auth.verifyOtp({
           token_hash,
           type: "email",
@@ -46,7 +64,6 @@ function ConfirmContent() {
           setMessage(error.message);
           toast.error("Failed to verify email");
 
-          // Redirect to login after error with a delay
           setTimeout(() => {
             router.push("/auth/login");
           }, 3000);
@@ -65,12 +82,19 @@ function ConfirmContent() {
           return;
         }
 
-        // Get the user's role
-        const { data: profile } = await supabase
+        console.log("Fetching user profile...");
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", data.user.id)
           .single();
+
+        if (profileError) {
+          console.error("Error fetching profile:", profileError);
+          // Continue with default role handling
+        } else {
+          console.log("User profile:", profile);
+        }
 
         setStatus("success");
         setMessage("Email verified successfully! Redirecting...");
@@ -78,11 +102,14 @@ function ConfirmContent() {
 
         // Redirect based on role or to default path
         setTimeout(() => {
-          if (profile?.role === "admin") {
+          const role = profile?.role || "customer";
+          console.log("Redirecting user with role:", role);
+
+          if (role === "admin") {
             router.push("/dashboard");
-          } else if (profile?.role === "supplier") {
+          } else if (role === "supplier") {
             router.push("/supplier-portal");
-          } else if (profile?.role === "employee") {
+          } else if (role === "employee") {
             router.push("/employee-portal");
           } else {
             router.push("/customer-portal");
@@ -94,7 +121,6 @@ function ConfirmContent() {
         setMessage("An unexpected error occurred during verification.");
         toast.error("Verification failed");
 
-        // Redirect to login after error with a delay
         setTimeout(() => {
           router.push("/auth/login");
         }, 3000);
