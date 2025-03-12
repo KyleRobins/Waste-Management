@@ -93,7 +93,14 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // First sign up the user in auth
+      // Check if this is the first user
+      const { count } = await supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true });
+
+      const finalRole = count === 0 ? "admin" : values.role;
+
+      // Single signup call with proper metadata
       const { data: authData, error: signUpError } = await supabase.auth.signUp(
         {
           email: values.email,
@@ -101,7 +108,7 @@ export default function RegisterPage() {
           options: {
             emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/confirm`,
             data: {
-              role: isFirstUser ? "admin" : values.role,
+              role: finalRole,
             },
           },
         }
@@ -109,27 +116,14 @@ export default function RegisterPage() {
 
       if (signUpError) throw signUpError;
 
-      // If signup successful, create the profile
-      if (authData.user) {
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: authData.user.id,
-          email: values.email,
-          role: isFirstUser ? "admin" : values.role,
-          created_at: new Date().toISOString(),
-        });
-
-        if (profileError) {
-          console.error("Error creating profile:", profileError);
-          throw new Error("Failed to create user profile");
-        }
-      }
-
       // Redirect to verify-email page after successful registration
       router.push("/auth/verify-email");
       toast({
         title: "Check your email",
         description:
-          "We've sent you a verification link to complete your registration.",
+          count === 0
+            ? "Account created with admin privileges. Please check your email to verify your account."
+            : "Please check your email to verify your account.",
       });
     } catch (err: any) {
       console.error("Registration error:", err);
