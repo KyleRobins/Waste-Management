@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { AuthError, Session } from "@supabase/supabase-js";
+import { AuthError, Session, User } from "@supabase/supabase-js";
 
 export type UserRole = "admin" | "employee" | "customer" | "supplier";
 
@@ -29,9 +29,14 @@ export const signUp = async (
     const supabase = createClient();
 
     // Check if this is the first user
-    const isFirstUser = await checkIfFirstUser(supabase);
+    const { count } = await supabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true });
+
+    const isFirstUser = count === 0;
     const finalRole = isFirstUser ? "admin" : role;
 
+    // Sign up with email
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -40,31 +45,27 @@ export const signUp = async (
           ...metadata,
           role: finalRole,
         },
-        emailRedirectTo: `${window.location.origin}/auth/confirm?type=signup`,
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
       },
     });
 
     if (error) throw error;
-    
-    // Create profile directly to ensure it exists
-    try {
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert({
-          id: data.user?.id,
-          email: email,
-          role: finalRole,
-          updated_at: new Date().toISOString(),
-        });
-        
+
+    // Create profile immediately
+    if (data.user) {
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: data.user.id,
+        email: email,
+        role: finalRole,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
       if (profileError) {
         console.error("Profile creation error:", profileError);
       }
-    } catch (profileErr) {
-      console.error("Error creating profile:", profileErr);
-      // Continue anyway - the trigger should handle this
     }
-    
+
     return {
       data,
       error: null,
@@ -91,7 +92,7 @@ export const signIn = async (email: string, password: string) => {
   try {
     const supabase = createClient();
 
-    // Attempt to sign in
+    // Sign in with password
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -111,36 +112,32 @@ export const signIn = async (email: string, password: string) => {
       // If profile doesn't exist, create it with default role
       if (profileError.code === "PGRST116") {
         const role = data.user?.user_metadata?.role || "customer";
-        
-        // Create profile directly
-        const { error: insertError } = await supabase
-          .from("profiles")
-          .insert({
-            id: data.user.id,
-            email: data.user.email,
-            role: role,
-          });
+
+        const { error: insertError } = await supabase.from("profiles").upsert({
+          id: data.user.id,
+          email: data.user.email,
+          role: role,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
 
         if (insertError) {
           console.error("Error creating profile:", insertError);
-          // Try updating user metadata instead
+          // Update user metadata as fallback
           await supabase.auth.updateUser({
-            data: { role: role }
+            data: { role: role },
           });
         }
-        
+
         return { data, error: null, role };
       }
-      
-      // For other errors, try to continue with default role
-      return { 
-        data, 
-        error: null, 
-        role: data.user?.user_metadata?.role || "customer" 
-      };
     }
 
-    return { data, error: null, role: profile?.role || "customer" };
+    return {
+      data,
+      error: null,
+      role: profile?.role || data.user?.user_metadata?.role || "customer",
+    };
   } catch (error) {
     console.error("Error in signIn:", error);
     return {
@@ -214,7 +211,7 @@ export const signOut = async () => {
   }
 };
 
-export const getCurrentUser = async () => {
+export const getCurrentUser = async (): Promise<User | null> => {
   try {
     const supabase = createClient();
     const {
@@ -225,24 +222,35 @@ export const getCurrentUser = async () => {
     return user;
   } catch (error) {
     console.error("Error in getCurrentUser:", error);
-    throw error;
+    return null;
   }
 };
 
 export const getCurrentUserRole = async (): Promise<UserRole> => {
   try {
     const supabase = createClient();
-    const { data: profile, error } = await supabase
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) throw new Error("No authenticated user");
+
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", (await supabase.auth.getUser()).data.user?.id)
+      .eq("id", user.id)
       .single();
 
-    if (error) throw error;
-    return (profile?.role as UserRole) || "customer";
+    if (profileError) {
+      console.error("Error fetching role:", profileError);
+      return user.user_metadata?.role || "customer";
+    }
+
+    return profile.role as UserRole;
   } catch (error) {
     console.error("Error in getCurrentUserRole:", error);
-    throw error;
+    return "customer";
   }
 };
 
@@ -261,11 +269,52 @@ export const getSession = async (): Promise<Session | null> => {
   }
 };
 
-// Function to directly create a user (for admin purposes)
-export const createUser = async (email: string, password: string, role: UserRole = "customer") => {
+export const refreshSession = async (): Promise<Session | null> => {
   try {
     const supabase = createClient();
-    
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.refreshSession();
+    if (error) throw error;
+    return session;
+  } catch (error) {
+    console.error("Error refreshing session:", error);
+    return null;
+  }
+};
+
+export const verifyEmail = async (
+  token_hash: string
+): Promise<{ success: boolean; error?: Error }> => {
+  try {
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash,
+      type: "email",
+    });
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error("Error verifying email:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error : new Error("Failed to verify email"),
+    };
+  }
+};
+
+// Function to directly create a user (for admin purposes)
+export const createUser = async (
+  email: string,
+  password: string,
+  role: UserRole = "customer"
+) => {
+  try {
+    const supabase = createClient();
+
     // Try to use admin API first
     try {
       const { data, error } = await supabase.auth.admin.createUser({
@@ -273,54 +322,51 @@ export const createUser = async (email: string, password: string, role: UserRole
         password,
         email_confirm: true,
         user_metadata: { role },
-        app_metadata: { role }
+        app_metadata: { role },
       });
-      
+
       if (error) throw error;
-      
+
       // Create profile
-      await supabase
-        .from("profiles")
-        .upsert({
-          id: data.user.id,
-          email: email,
-          role: role,
-          updated_at: new Date().toISOString(),
-        });
-        
+      await supabase.from("profiles").upsert({
+        id: data.user.id,
+        email: email,
+        role: role,
+        updated_at: new Date().toISOString(),
+      });
+
       return { data, error: null };
     } catch (adminError) {
       // Fall back to regular signup
       console.log("Admin API failed, using regular signup");
-      
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: { role },
-          emailRedirectTo: `${window.location.origin}/auth/callback`
-        }
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
-      
+
       if (error) throw error;
-      
+
       // Create profile
-      await supabase
-        .from("profiles")
-        .upsert({
-          id: data.user?.id,
-          email: email,
-          role: role,
-          updated_at: new Date().toISOString(),
-        });
-        
+      await supabase.from("profiles").upsert({
+        id: data.user?.id,
+        email: email,
+        role: role,
+        updated_at: new Date().toISOString(),
+      });
+
       return { data, error: null };
     }
   } catch (error) {
     console.error("Error creating user:", error);
     return {
       data: null,
-      error: error instanceof AuthError ? error : new Error("Failed to create user"),
+      error:
+        error instanceof AuthError ? error : new Error("Failed to create user"),
     };
   }
 };

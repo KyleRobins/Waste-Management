@@ -1,22 +1,27 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
-import { createClient } from "@/utils/supabase/client";
-import { Card } from "@/components/ui/card";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { EmailOtpType } from "@supabase/supabase-js";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "@/components/ui/use-toast";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
 
-// Separate component that uses useSearchParams
+type VerificationStatus = "loading" | "success" | "error";
+
+export default function ConfirmPage() {
+  return (
+    <div className="container flex h-screen w-screen flex-col items-center justify-center">
+      <ConfirmContent />
+    </div>
+  );
+}
+
 function ConfirmContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [status, setStatus] = useState<"verifying" | "success" | "error">(
-    "verifying"
-  );
-  const [message, setMessage] = useState("Verifying your email...");
+  const [status, setStatus] = useState<VerificationStatus>("loading");
+  const [message, setMessage] = useState<string>("Verifying your email...");
   const supabase = createClient();
 
   useEffect(() => {
@@ -24,24 +29,20 @@ function ConfirmContent() {
       try {
         const token_hash = searchParams.get("token_hash");
         const type = searchParams.get("type");
-        const next = searchParams.get("next") ?? "/auth/login";
 
         console.log("Starting verification process with params:", {
           token_hash,
           type,
-          next,
         });
 
         if (!token_hash) {
-          console.error("No token_hash found in URL");
           setStatus("error");
           setMessage("Invalid verification link. No token hash found.");
           return;
         }
 
         // Verify the email
-        console.log("Attempting to verify email...");
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        const { error: verifyError } = await supabase.auth.verifyOtp({
           token_hash,
           type: "email",
         });
@@ -50,19 +51,15 @@ function ConfirmContent() {
           console.error("Verification error:", verifyError);
           setStatus("error");
           setMessage(verifyError.message);
-          toast.error("Failed to verify email");
+          toast({
+            title: "Verification Failed",
+            description: verifyError.message,
+            variant: "destructive",
+          });
           return;
         }
 
-        if (!data.user) {
-          console.error("No user data returned from verification");
-          setStatus("error");
-          setMessage("Verification failed: No user data found");
-          toast.error("Verification failed");
-          return;
-        }
-
-        // Get the session
+        // Get the session after verification
         const {
           data: { session },
           error: sessionError,
@@ -72,52 +69,51 @@ function ConfirmContent() {
           console.error("Session error:", sessionError);
           setStatus("error");
           setMessage("Failed to create user session");
-          toast.error("Verification error");
+          toast({
+            title: "Verification Error",
+            description: "Failed to create user session",
+            variant: "destructive",
+          });
           return;
         }
 
-        // Fetch or create the user's profile
-        console.log("Fetching user profile...");
+        // Ensure profile exists
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("role")
-          .eq("id", data.user.id)
+          .eq("id", session.user.id)
           .single();
 
-        if (profileError) {
-          console.error("Error fetching profile:", profileError);
-          // If profile doesn't exist, create it
-          if (data.user && data.user.email) {
-            const userRole = data.user.user_metadata?.role || "customer";
-            const { error: insertError } = await supabase
-              .from("profiles")
-              .insert({
-                id: data.user.id,
-                email: data.user.email,
-                role: userRole,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              });
+        if (profileError && profileError.code === "PGRST116") {
+          // Profile doesn't exist, create it
+          const userRole = session.user.user_metadata?.role || "customer";
+          const { error: createError } = await supabase
+            .from("profiles")
+            .insert({
+              id: session.user.id,
+              email: session.user.email,
+              role: userRole,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
 
-            if (insertError) {
-              console.error("Error creating profile:", insertError);
-              setStatus("error");
-              setMessage("Failed to create user profile");
-              toast.error("Profile creation failed");
-              return;
-            }
+          if (createError) {
+            console.error("Error creating profile:", createError);
+            // Continue with metadata role
           }
         }
 
         setStatus("success");
         setMessage("Email verified successfully! Redirecting...");
-        toast.success("Email verified successfully!");
+        toast({
+          title: "Success",
+          description: "Email verified successfully!",
+        });
 
         // Redirect based on role
         setTimeout(() => {
           const role =
-            profile?.role || data.user?.user_metadata?.role || "customer";
-          console.log("Redirecting user with role:", role);
+            profile?.role || session.user.user_metadata?.role || "customer";
 
           const redirectMap: Record<string, string> = {
             admin: "/dashboard",
@@ -132,7 +128,11 @@ function ConfirmContent() {
         console.error("Unexpected error during verification:", error);
         setStatus("error");
         setMessage("An unexpected error occurred during verification.");
-        toast.error("Verification failed");
+        toast({
+          title: "Verification Failed",
+          description: "An unexpected error occurred",
+          variant: "destructive",
+        });
       }
     };
 
@@ -140,54 +140,26 @@ function ConfirmContent() {
   }, [searchParams, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md p-6">
-        <div className="text-center space-y-4">
-          {status === "verifying" && (
-            <>
-              <Loader2 className="animate-spin h-12 w-12 mx-auto text-primary" />
-              <h1 className="text-2xl font-semibold">Verifying your email</h1>
-            </>
-          )}
-          {status === "success" && (
-            <>
-              <CheckCircle2 className="h-12 w-12 mx-auto text-green-500" />
-              <h1 className="text-2xl font-semibold text-green-500">
-                Success!
-              </h1>
-            </>
-          )}
-          {status === "error" && (
-            <>
-              <XCircle className="h-12 w-12 mx-auto text-red-500" />
-              <h1 className="text-2xl font-semibold text-red-500">
-                Verification Failed
-              </h1>
-            </>
-          )}
-          <p className="text-muted-foreground">{message}</p>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-// Main page component with Suspense
-export default function ConfirmPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center p-4">
-          <Card className="w-full max-w-md p-6">
-            <div className="text-center space-y-2">
-              <Loader2 className="animate-spin h-8 w-8 mx-auto text-primary" />
-              <p className="text-muted-foreground">Loading...</p>
-            </div>
-          </Card>
-        </div>
-      }
-    >
-      <ConfirmContent />
-    </Suspense>
+    <Card className="w-[380px]">
+      <CardHeader>
+        <CardTitle className="text-2xl text-center">
+          Email Verification
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 text-center">
+        {status === "loading" && (
+          <div className="flex justify-center">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        )}
+        <p
+          className={
+            status === "error" ? "text-destructive" : "text-muted-foreground"
+          }
+        >
+          {message}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
