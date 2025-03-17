@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
@@ -9,14 +9,35 @@ import { Loader2 } from "lucide-react";
 
 type VerificationStatus = "loading" | "success" | "error";
 
+// Loading component
+function LoadingCard() {
+  return (
+    <Card className="w-[380px]">
+      <CardHeader>
+        <CardTitle className="text-2xl text-center">Loading...</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 text-center">
+        <div className="flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+        <p className="text-muted-foreground">Verifying your email...</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Main page component
 export default function ConfirmPage() {
   return (
     <div className="container flex h-screen w-screen flex-col items-center justify-center">
-      <ConfirmContent />
+      <Suspense fallback={<LoadingCard />}>
+        <ConfirmContent />
+      </Suspense>
     </div>
   );
 }
 
+// Separate component that uses useSearchParams
 function ConfirmContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
