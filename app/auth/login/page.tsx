@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -16,69 +17,16 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import Link from "next/link";
-import { LordIcon } from "@/components/ui/lord-icon";
-import { GoogleButton } from "@/components/ui/GoogleButton";
-import { createClient } from "@/lib/supabase/client";
-import { signUp } from "@/app/auth/client-actions";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(1, "Password is required"),
 });
 
 export default function LoginPage() {
-  const handleSignUp = async (formData: FormData) => {
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-
-    const { success, error, redirect } = await signUp(email, password);
-
-    if (error) {
-      toast.error(error);
-      return;
-    }
-
-    if (success && redirect) {
-      toast.success("Please check your email to verify your account");
-      router.push(redirect);
-    }
-  };
-
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <LoginContent />
-    </Suspense>
-  );
-}
-
-function LoginContent() {
-  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const searchParams = useSearchParams();
   const supabase = createClient();
-
-  useEffect(() => {
-    // Show success message if email was verified
-    const message = searchParams.get("message");
-    const error = searchParams.get("error");
-
-    if (message) {
-      toast({
-        title: "Success",
-        description: message,
-      });
-    }
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: error,
-        variant: "destructive",
-      });
-    }
-  }, [searchParams, toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -90,140 +38,67 @@ function LoginContent() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      setIsLoading(true);
-
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: values.email,
         password: values.password,
       });
 
       if (error) throw error;
 
-      // Get user role from profile
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", data.user.id)
-        .single();
-
-      if (profileError && profileError.code !== "PGRST116") {
-        console.error("Error fetching profile:", profileError);
-      }
-
-      const role =
-        profile?.role || data.user?.user_metadata?.role || "customer";
-
-      // Role-based redirection
-      const redirectMap = {
-        admin: "/dashboard",
-        employee: "/dashboard",
-        supplier: "/supplier-portal",
-        customer: "/customer-portal",
-      };
-
-      router.push(
-        redirectMap[role as keyof typeof redirectMap] || "/dashboard"
-      );
-    } catch (err: any) {
+      router.push("/");
+      router.refresh();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: err.message || "Failed to sign in",
+        description: error.message || "Login failed",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
-        <div className="space-y-2 text-center">
-          <div className="flex justify-center">
-            <LordIcon
-              src="https://cdn.lordicon.com/itysowyb.json"
-              trigger="loop"
-              size={120}
-              colors={{
-                primary: "#16a34a",
-                secondary: "#22c55e",
-              }}
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white p-8 rounded-lg shadow-md w-96">
+        <h1 className="text-2xl font-bold mb-6">Login</h1>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <h1 className="text-3xl font-bold">Welcome Back</h1>
-          <p className="text-muted-foreground">
-            Enter your credentials to access your account
-          </p>
-        </div>
-
-        <div className="mt-8 space-y-6">
-          <GoogleButton mode="login" />
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="bg-card px-2 text-muted-foreground">
-                Or sign in with email
-              </span>
-            </div>
-          </div>
-
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="email@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign in"}
-              </Button>
-            </form>
-          </Form>
-        </div>
-
-        <div className="space-y-2 text-center text-sm">
-          <p className="text-muted-foreground">
-            Don't have an account?{" "}
-            <Link
-              href="/auth/register"
-              className="text-primary hover:underline"
-            >
-              Register
-            </Link>
-          </p>
-          <Link
-            href="/auth/forgot-password"
-            className="text-primary hover:underline block"
-          >
-            Forgot your password?
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit" className="w-full">
+              Login
+            </Button>
+          </form>
+        </Form>
+        <p className="mt-4 text-center text-sm text-gray-600">
+          Don't have an account?{" "}
+          <Link href="/auth/register" className="text-primary hover:underline">
+            Register
           </Link>
-        </div>
+        </p>
       </div>
     </div>
   );

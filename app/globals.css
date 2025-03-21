@@ -7,7 +7,7 @@ body,
 :root {
   height: 100%;
 }
-
+ 
 @layer base {
   :root {
     --background: 152 40% 98%;
@@ -31,7 +31,7 @@ body,
     --ring: 152 40% 40%;
     --radius: 0.5rem;
   }
-
+ 
   .dark {
     --background: 20 14% 4%;
     --foreground: 152 10% 97%;
@@ -54,7 +54,7 @@ body,
     --ring: 152 43% 46%;
   }
 }
-
+ 
 @layer base {
   * {
     @apply border-border;
@@ -62,27 +62,4 @@ body,
   body {
     @apply bg-background text-foreground;
   }
-}
-
-@keyframes strikethrough {
-  from {
-    width: 0;
-  }
-  to {
-    width: 100%;
-  }
-}
-
-.strikethrough-animation {
-  position: relative;
-}
-
-.strikethrough-animation::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 50%;
-  height: 2px;
-  background-color: #22c55e; /* green-500 */
-  animation: strikethrough 0.5s ease-in-out forwards;
 }

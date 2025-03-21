@@ -1,35 +1,16 @@
-import { createClient } from "@/utils/supabase/server";
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-
-export const dynamic = "force-dynamic";
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
-  const token_hash = requestUrl.searchParams.get("token_hash");
-  const type = requestUrl.searchParams.get("type");
-
-  const cookieStore = cookies();
-  const supabase = createClient(cookieStore);
+  const code = requestUrl.searchParams.get('code');
 
   if (code) {
+    const supabase = createRouteHandlerClient({ cookies });
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  // Handle email confirmation
-  if (token_hash && type) {
-    const { error } = await supabase.auth.verifyOtp({
-      token_hash,
-      type,
-    });
-    if (!error) {
-      return NextResponse.redirect(
-        `${requestUrl.origin}/auth/confirm?token_hash=${token_hash}&type=${type}`
-      );
-    }
-  }
-
-  // Redirect to the home page if no confirmation needed
+  // URL to redirect to after sign in process completes
   return NextResponse.redirect(requestUrl.origin);
 }
